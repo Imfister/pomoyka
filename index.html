@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#090909">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Помойка">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta name="description" content="Личная помойка для сохранённых материалов. Все данные остаются на этом устройстве.">
+  <title>Помойка</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icon-180.png">
+  <link rel="icon" href="./icon-192.png" type="image/png">
+  <link rel="stylesheet" href="./style.css">
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.25" width="17" height="4" rx="1.4"/><rect x="5.25" y="8.8" width="13.5" height="11.25" rx="1.7"/><path d="M9 13.1h6"/></svg>
+        <h1>Помойка</h1>
+      </div>
+      <button id="appMenuButton" type="button" class="top-menu-button" aria-label="Действия с помойкой" title="Действия">Концепция</button>
+    </header>
+
+    <nav class="categories" aria-label="Категории">
+      <button class="category" data-category="link" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13.5l4-4M8.5 16.25H7a4.5 4.5 0 0 1 0-9h3M15.5 7.75H17a4.5 4.5 0 0 1 0 9h-3"/></svg>
+        <span>Ссылки</span>
+      </button>
+      <button class="category" data-category="image" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.6" r="1.7"/><path d="M4 17l5.1-5 4.2 3.8 2.2-2.1 4.5 4.7"/></svg>
+        <span>Фото</span>
+      </button>
+      <button class="category" data-category="video" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M3 7l1-4h16l1 4M9 3l-2 4m8-4l-2 4M3 11h18"/></svg>
+        <span>Видео</span>
+      </button>
+      <button class="category" data-category="text" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14.5 3v5h4.5M8.5 12h7M8.5 16h5"/></svg>
+        <span>Текст</span>
+      </button>
+    </nav>
+    <button id="otherFilesButton" class="other-files hidden" type="button">Другие файлы <span id="otherCount">0</span></button>
+
+    <section class="list-card" aria-label="Сохранённые записи">
+      <div class="list-heading">
+        <div class="heading-group">
+          <button type="button" id="backButton" class="icon-button hidden" aria-label="К последним добавлениям">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg>
+          </button>
+          <h2 id="listTitle">Последние добавления</h2>
+        </div>
+        <div class="heading-actions">
+          <button type="button" id="clearCategoryButton" class="icon-button hidden" aria-label="Удалить все записи этой категории" title="Очистить категорию">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6m4-6v6"/></svg>
+          </button>
+          <button type="button" id="searchToggle" class="icon-button" aria-label="Поиск" title="Поиск">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.75" cy="10.75" r="6.75"/><path d="m15.7 15.7 5 5"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="search-wrap hidden" id="searchWrap">
+        <input id="searchInput" type="search" placeholder="Поиск по записям" autocomplete="off" aria-label="Поиск по сохранённому">
+      </div>
+      <div id="entries" class="entries" aria-live="polite"><p class="empty">Загружаем записи…</p></div>
+      <button id="moreButton" type="button" class="more-button hidden">Ещё</button>
+    </section>
+
+    <footer class="bottom-actions">
+      <button id="attachButton" class="action-button action-primary" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12.5 14.6 6a3.25 3.25 0 1 1 4.6 4.6l-9 9a5.3 5.3 0 0 1-7.5-7.5l9-9"/></svg>
+        Прикрепить
+      </button>
+      <button id="clipboardButton" class="action-button action-secondary" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5.5" y="5" width="13" height="16" rx="2"/><path d="M9 5V3h6v2M9 11h6m-6 4h6"/></svg>
+        Из буфера
+      </button>
+    </footer>
+  </div>
+
+  <input id="photosInput" class="hidden" type="file" accept="image/*,video/*" multiple>
+  <input id="filesInput" class="hidden" type="file" multiple>
+
+  <dialog id="attachDialog" class="sheet"><div class="dialog-inner">
+    <div class="dialog-header"><h3>Прикрепить</h3><button class="close-button" type="button" data-close="attachDialog" aria-label="Закрыть">×</button></div>
+    <button type="button" id="choosePhotos" class="sheet-option"><span class="sheet-emoji">▧</span><span>Фото или видео<span class="option-note">Из медиатеки iPhone</span></span></button>
+    <button type="button" id="chooseFiles" class="sheet-option"><span class="sheet-emoji">▤</span><span>Файл<span class="option-note">Из приложения «Файлы»</span></span></button>
+    <button type="button" id="chooseText" class="sheet-option"><span class="sheet-emoji">✎</span><span>Текст или ссылка<span class="option-note">Ввести вручную</span></span></button>
+  </div></dialog>
+
+  <dialog id="textDialog" class="sheet"><form id="textForm" class="dialog-inner">
+    <div class="dialog-header"><h3>Добавить запись</h3><button class="close-button" type="button" data-close="textDialog" aria-label="Закрыть">×</button></div>
+    <label class="field-label" for="newText">Текст или ссылка</label>
+    <textarea id="newText" rows="6" placeholder="Введи текст или вставь ссылку" required></textarea>
+    <label class="field-label" for="newTitle">Название (необязательно)</label>
+    <input id="newTitle" maxlength="160" type="text" placeholder="Без названия">
+    <button id="textSave" type="submit" class="dialog-primary">Сохранить</button>
+  </form></dialog>
+
+  <dialog id="renameDialog" class="sheet"><form id="renameForm" class="dialog-inner">
+    <div class="dialog-header"><h3>Переименовать</h3><button class="close-button" type="button" data-close="renameDialog" aria-label="Закрыть">×</button></div>
+    <label class="field-label" for="renameInput">Название записи</label>
+    <input id="renameInput" maxlength="160" type="text" required>
+    <button type="submit" class="dialog-primary">Сохранить</button>
+  </form></dialog>
+
+  <dialog id="itemMenu" class="sheet"><div class="dialog-inner">
+    <div class="dialog-header"><h3 id="itemMenuTitle">Запись</h3><button class="close-button" type="button" data-close="itemMenu" aria-label="Закрыть">×</button></div>
+    <button id="menuOpen" class="sheet-option" type="button">Открыть</button>
+    <button id="menuRename" class="sheet-option" type="button">Переименовать</button>
+    <button id="menuCopy" class="sheet-option hidden" type="button">Копировать содержимое</button>
+    <button id="menuDelete" class="sheet-option danger" type="button">Удалить запись</button>
+  </div></dialog>
+
+  <dialog id="appMenu" class="sheet"><div class="dialog-inner">
+    <div class="dialog-header"><h3>Помойка</h3><button class="close-button" type="button" data-close="appMenu" aria-label="Закрыть">×</button></div>
+    <p class="privacy-note">Записи хранятся только на этом устройстве. Они не загружаются в GitHub или облако.</p>
+    <button id="appDeleteAll" class="sheet-option danger" type="button">Удалить вообще всё</button>
+  </div></dialog>
+
+  <dialog id="viewer" class="viewer"><div class="viewer-shell">
+    <div class="viewer-top"><h3 id="viewerTitle">Просмотр</h3><button class="close-button" type="button" data-close="viewer" aria-label="Закрыть">×</button></div>
+    <div id="viewerBody" class="viewer-body"></div>
+    <div id="viewerActions" class="viewer-actions"></div>
+  </div></dialog>
+
+  <dialog id="pasteDialog" class="sheet"><form id="pasteForm" class="dialog-inner">
+    <div class="dialog-header"><h3>Вставка из буфера</h3><button class="close-button" type="button" data-close="pasteDialog" aria-label="Закрыть">×</button></div>
+    <p class="privacy-note">iPhone не дал прочитать буфер автоматически. Нажми на поле и выбери «Вставить». Если скопировано фото, попробуй кнопку «Прикрепить».</p>
+    <textarea id="pasteText" rows="5" placeholder="Нажми и удерживай → Вставить"></textarea>
+    <button class="dialog-primary" type="submit">Сохранить вставленное</button>
+  </form></dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
