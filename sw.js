@@ -1,7 +1,7 @@
 'use strict';
 // Кешируем только программные файлы, а не личные записи и вложения.
-const CACHE = 'pomoyka-static-v10';
-const ASSETS = ['./', './index.html', './style.css?v=10', './app.js?v=10', './manifest.webmanifest?v=5', './icon-180.png?v=5', './icon-192.png?v=5', './icon-512.png?v=5', './trash-swipe.png', './copy-icon.png'];
+const CACHE = 'pomoyka-static-v11';
+const ASSETS = ['./', './index.html', './style.css?v=11', './app.js?v=11', './manifest.webmanifest?v=5', './icon-180.png?v=5', './icon-192.png?v=5', './icon-512.png?v=5', './trash-swipe.png', './copy-icon.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });

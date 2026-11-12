@@ -143,3 +143,7 @@
 .selection-toggle[aria-pressed="true"]{color:#f3f3f4;border-color:#626266}
 #clearCategoryButton{min-width:33px;width:33px;height:33px;padding:4px}
 #searchInput{font-size:16px}
+
+/* v1.9 — компактные кнопки и стабильный бар «Поделиться». */
+.selection-toggle{height:28px;min-height:28px;line-height:17px;font-size:12.5px;padding:3px 9px;border-radius:11px}
+.selection-action{transition:none}

@@ -43,11 +43,16 @@ function getErrorMessage(error) {
   return 'Не удалось сохранить данные. Проверь свободное место на iPhone.';
 }
 function showToast(message) {
-  const t=$('toast');
-  t.textContent=message;
-  t.classList.add('show');
+  const toast=$('toast');
   clearTimeout(toastTimeout);
-  toastTimeout=setTimeout(()=>t.classList.remove('show'),3400);
+  // Вторая команда сразу убирает предыдущий toast и запускает его анимацию с нуля.
+  toast.style.transition='none';
+  toast.classList.remove('show');
+  toast.getBoundingClientRect(); // отдельный кадр состояния "скрыто" без таймера
+  toast.textContent=message;
+  toast.style.transition='';
+  toast.classList.add('show');
+  toastTimeout=setTimeout(()=>toast.classList.remove('show'),3000);
 }
 function openDB() {
   return new Promise((resolve,reject)=>{
@@ -338,10 +343,19 @@ function setMode(mode) {
   $('searchInput').value='';
   render();
 }
+function normalizedLink(value) {
+  const text=String(value||'').trim();
+  if(/\s/.test(text))return null;
+  // Поддерживаем www.example.com и обычные http(s) ссылки, не меняя сохранённый текст.
+  const candidate=/^www\./i.test(text)?'https://'+text:text;
+  try {
+    const url=new URL(candidate);
+    if((url.protocol==='https:'||url.protocol==='http:') && url.hostname.includes('.') && !url.hostname.endsWith('.'))return url.href;
+  } catch{}
+  return null;
+}
 function detectTextType(value) {
-  const trimmed=value.trim();
-  try {const url=new URL(trimmed);if((url.protocol==='https:'||url.protocol==='http:')&&!/\s/.test(trimmed)) return 'link';}catch{}
-  return 'text';
+  return normalizedLink(value)?'link':'text';
 }
 async function saveText(value,title='') {
   const text=value.trim();
@@ -404,7 +418,7 @@ function recordIsAudio(record) {
   return Boolean(record && (inferFileMime(record).startsWith('audio/') || /\.(mp3|m4a|aac|wav|flac|ogg)$/i.test(record.originalName||'')));
 }
 function shareablePayload(record, blob) {
-  if (record.type==='link') return {url:recordText(record)};
+  if (record.type==='link') return {url:normalizedLink(recordText(record))||recordText(record)};
   if (record.type==='text' && recordText(record)) return {text:recordText(record)};
   if (!(blob instanceof Blob)) return null;
   const filename=record.originalName||'Сохранённый файл';
@@ -477,7 +491,7 @@ async function openViewer(id) {
   const body=$('viewerBody'),buttons=$('viewerActions');body.replaceChildren();buttons.replaceChildren();
   let sharePayload=null;
   if(record.type==='link'){
-    const anchor=document.createElement('a');anchor.textContent=recordText(record);anchor.href=recordText(record);anchor.rel='noopener noreferrer';anchor.target='_blank';body.append(anchor);
+    const anchor=document.createElement('a');anchor.textContent=recordText(record);anchor.href=normalizedLink(recordText(record))||recordText(record);anchor.rel='noopener noreferrer';anchor.target='_blank';body.append(anchor);
     sharePayload=shareablePayload(record,null);
   }else if(record.type==='text'&&recordText(record)){
     const content=document.createElement('div');content.className='text-preview';content.textContent=recordText(record);body.append(content);
@@ -530,6 +544,14 @@ async function copyValue(value){
 // WebKit гарантирует формат image/png, но не произвольные файлы PDF, MP3, MOV.
 function copyRecordFromTap(record){
   if(!canCopyRecord(record))return;
+  // При повторном нажатии старый toast исчезает сразу, даже если
+  // копирование изображения ещё обрабатывается асинхронно.
+  clearTimeout(toastTimeout);
+  const toast=$('toast');
+  toast.style.transition='none';
+  toast.classList.remove('show');
+  toast.getBoundingClientRect();
+  toast.style.transition='';
   if(record.type==='link' || record.type==='text'){
     copyValue(recordText(record));return;
   }
@@ -580,8 +602,9 @@ function updateSelectionUI(){
   $('selectionBar').closest('.bottom-actions').classList.toggle('selecting',selecting);
   $('selectionCount').textContent='Выбрано: '+selectedIds.size;
   $('selectionDelete').disabled=selectedIds.size===0;
-  $('selectionShare').disabled=selectedIds.size===0||!bulkSharePayload;
-  $('selectionShare').textContent=selectedIds.size>0&&!bulkSharePayload?'Подготовка…':'Поделиться';
+  // Не меняем состояние/надпись этой кнопки при каждом изменении выбора:
+  // отключение и замена "Поделиться" на "Подготовка…" вызывали мигание в iOS.
+  $('selectionShare').disabled=selectedIds.size===0;
   $('clearCategoryButton').disabled=selecting;
 }
 function toggleSelectionMode(){
@@ -669,76 +692,97 @@ async function deleteEverything(){
   if(!confirm(`Удалить вообще все записи (${state.entries.length})? Фото, видео, ссылки и текст исчезнут без возможности восстановления.`))return;
   try{await clearAllRecords();setMode('home');await refresh();showToast('Помойка очищена');}catch{showToast('Ошибка удаления');}
 }
+// Читаем системный буфер сразу в обработчике кнопки (iOS показывает свою плашку Paste).
+// В Safari документирован доступ к image/png и текстовым форматам. Форматы из «Фото»
+// иногда не передаются WebKit — их невозможно извлечь из обычной PWA принудительно.
+const CLIPBOARD_BINARY_EXTENSIONS={
+  'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/gif':'gif',
+  'image/heic':'heic','image/heif':'heif','image/avif':'avif','image/tiff':'tiff',
+  'video/mp4':'mp4','video/quicktime':'mov','audio/mpeg':'mp3','audio/mp4':'m4a',
+  'application/pdf':'pdf','application/zip':'zip','application/json':'json'
+};
+function clipboardBinaryMime(type){
+  return /^(image|video|audio)\//i.test(type)||
+    /^application\/(pdf|zip|octet-stream|json|msword|vnd\.)/i.test(type);
+}
+function fileFromClipboardBlob(blob,mime,index){
+  const type=(mime||blob.type||'application/octet-stream').toLowerCase();
+  const ext=CLIPBOARD_BINARY_EXTENSIONS[type] || type.split('/')[1]?.replace(/[^a-z0-9]+/gi,'-') || 'bin';
+  return new File([blob],`Из буфера${index?'-'+(index+1):''}.${ext}`,{type});
+}
+function embeddedImageFromHTML(markup,index){
+  const html=new DOMParser().parseFromString(markup,'text/html');
+  // Только встроенные data: картинки: без сетевых обращений и загрузки чужих URLs.
+  const elements=html.querySelectorAll('img[src^="data:image/"]');
+  for(const image of elements){
+    const src=image.getAttribute('src')||'';
+    if(src.length>40_000_000)continue;
+    const match=/^data:(image\/[a-z0-9.+-]+)(?:;[^,]*)?;base64,([a-z0-9+/=\s]+)$/i.exec(src);
+    if(!match)continue;
+    try{
+      const raw=atob(match[2].replace(/\s/g,''));
+      const bytes=new Uint8Array(raw.length);
+      for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
+      return fileFromClipboardBlob(new Blob([bytes],{type:match[1]}),match[1],index);
+    }catch(error){console.info('Clipboard embedded image:',error?.name);}
+  }
+  return null;
+}
 async function importClipboard(){
-  // Запускаем чтение ПРЯМО из нажатия — важно для iOS Paste.
+  // Вызов read() синхронно из клика важен для разрешения iOS Paste.
   const clipboard=navigator.clipboard;
-  if(!clipboard){showToast('Буфер недоступен');return;}
+  if(!clipboard){showToast('Формат буфера не поддерживается');return;}
   try{
     if(typeof clipboard.read==='function'){
       const items=await clipboard.read();
       if(!items.length){showToast('Пустой буфер');return;}
-      const files=[];const texts=[];let hadUnsupported=false;
-      for(const item of items){
+      const files=[], texts=[];
+      let encounteredData=false;
+      let unsupported=false;
+      for(const [index,item] of items.entries()){
         const types=Array.from(item.types||[]);
-        // Safari иногда предлагает одновременно image/png и text/html.
-        // Сначала читаем картинку/файл, а не её текстовое описание.
-        const binaries=types.filter(type=>
-          /^(image|video|audio)\//i.test(type) ||
-          /^application\/(pdf|zip|octet-stream|json|msword|vnd\.)/i.test(type));
-        let gotBinary=false;
-        for(const mime of binaries){
+        if(!types.length){unsupported=true;continue;}
+        encounteredData=true;
+        // Важно: сначала фактическая картинка, потом текст/HTML. Safari может
+        // отдавать одну фотографию одновременно в нескольких представлениях.
+        const binaryTypes=types.filter(clipboardBinaryMime)
+          .sort((a,b)=>(a.toLowerCase()==='image/png'? -1:0)-(b.toLowerCase()==='image/png'?-1:0));
+        let handled=false;
+        for(const mime of binaryTypes){
           try{
             const blob=await item.getType(mime);
-            if(!(blob instanceof Blob)||!blob.size)continue;
-            const ext=({
-              'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/gif':'gif',
-              'image/heic':'heic','image/heif':'heif','image/avif':'avif',
-              'video/mp4':'mp4','video/quicktime':'mov','audio/mpeg':'mp3','audio/mp4':'m4a',
-              'application/pdf':'pdf','application/zip':'zip','application/json':'json'
-            })[mime.toLowerCase()] || mime.split('/')[1]?.replace(/[^a-z0-9]+/gi,'-') || 'bin';
-            files.push(new File([blob],`Из буфера.${ext}`,{type:mime}));
-            gotBinary=true;
-            break;
-          }catch(error){console.info('Формат буфера не прочитан:',mime,error?.name);hadUnsupported=true;}
+            if(!(blob instanceof Blob)||blob.size===0){unsupported=true;continue;}
+            files.push(fileFromClipboardBlob(blob,mime,index));
+            handled=true;break;
+          }catch(error){unsupported=true;console.info('Clipboard binary:',mime,error?.name);}
         }
-        if(gotBinary)continue;
-        let gotText=false;
+        if(handled)continue;
+        // Если WebKit не открыл бинарный формат, проверяем встроенное изображение
+        // в HTML ДО текстового описания (в том числе если есть обычный text/plain).
+        if(types.includes('text/html')){
+          try{
+            const html=await (await item.getType('text/html')).text();
+            const embedded=embeddedImageFromHTML(html,index);
+            if(embedded){files.push(embedded);continue;}
+          }catch(error){unsupported=true;console.info('Clipboard HTML:',error?.name);}
+        }
         for(const mime of ['text/plain','text/uri-list','text/html']){
           if(!types.includes(mime))continue;
           try{
-            const raw=(await item.getType(mime)).text();
-            const value=await raw;
-            let text=value;
+            let value=await (await item.getType(mime)).text();
             if(mime==='text/html'){
-              // Только локальный разбор HTML, без выполнения скриптов и сетевой загрузки.
-              const documentFragment=new DOMParser().parseFromString(value,'text/html');
-              // Некоторые источники копируют картинку как встроенный data:image/... в HTML.
-              // Это дополнительный вариант, когда бинарный формат не был доступен.
-              const source=documentFragment.querySelector('img[src^="data:image/"]')?.getAttribute('src');
-              if(source && source.length<40_000_000){
-                const match=/^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=]+)$/i.exec(source);
-                if(match){
-                  try{
-                    const binary=atob(match[2]);
-                    const bytes=new Uint8Array(binary.length);
-                    for(let k=0;k<binary.length;k++)bytes[k]=binary.charCodeAt(k);
-                    const subtype=match[1].split('/')[1].replace('jpeg','jpg');
-                    const file=new File([bytes],`Из буфера.${subtype}`,{type:match[1]});
-                    files.push(file);gotBinary=true;break;
-                  }catch(error){console.info('Встроенное изображение недоступно:',error?.name);}
-                }
-              }
-              text=documentFragment.body?.textContent||'';
-              if(!text.trim())text=documentFragment.querySelector('a[href]')?.getAttribute('href')||'';
+              const html=new DOMParser().parseFromString(value,'text/html');
+              value=html.body?.textContent||html.querySelector('a[href]')?.getAttribute('href')||'';
             }
-            if(text.trim()){texts.push(text);gotText=true;break;}
-          }catch(error){console.info('Текстовый формат недоступен:',mime,error?.name);}
+            if(value.trim()){texts.push(value);handled=true;break;}
+          }catch(error){unsupported=true;console.info('Clipboard text:',mime,error?.name);}
         }
-        if(!gotText&&types.length)hadUnsupported=true;
+        if(!handled)unsupported=true;
       }
       if(files.length){await saveFiles(files);return;}
       if(texts.length){await saveText(texts.join('\n'));return;}
-      showToast(hadUnsupported?'Этот формат буфера не поддерживается iPhone':'Пустой буфер');
+      // Если Safari сообщил о форматах, но не отдал данные — это НЕ пустой буфер.
+      showToast(unsupported||encounteredData?'Формат буфера не поддерживается':'Пустой буфер');
       return;
     }
     if(typeof clipboard.readText==='function'){
@@ -746,12 +790,12 @@ async function importClipboard(){
       if(value.trim()){await saveText(value);return;}
       showToast('Пустой буфер');return;
     }
-    showToast('Буфер недоступен');
+    showToast('Формат буфера не поддерживается');
   }catch(error){
-    // Отмена системной плашки Paste — это не пустой буфер.
+    // Закрыл пользователь плашку Paste — не выдаём ложное сообщение о пустоте.
     if(error?.name==='NotAllowedError'||error?.name==='AbortError')return;
-    if(error?.name==='NotFoundError'){showToast('Пустой буфер');return;}
-    console.info('Ошибка чтения буфера:',error?.name);
+    if(error?.name==='NotFoundError'){showToast('Формат буфера не поддерживается');return;}
+    console.info('Clipboard read:',error?.name);
     showToast('Не удалось прочитать буфер');
   }
 }
@@ -763,7 +807,11 @@ function bindEvents(){
   $('searchInput').addEventListener('input',render);
   $('clearCategoryButton').addEventListener('click',deleteCategory);
   $('selectionToggle').addEventListener('click',toggleSelectionMode);
-  $('selectionShare').addEventListener('click',()=>{if(bulkSharePayload)shareFromTap(bulkSharePayload);});
+  $('selectionShare').addEventListener('click',()=>{
+    if(!selectedIds.size)return;
+    if(bulkSharePayload)shareFromTap(bulkSharePayload);
+    else showToast('Файлы ещё подготавливаются');
+  });
   $('selectionDelete').addEventListener('click',deleteSelected);
   $('appMenuButton').addEventListener('click',()=>showDialog('appMenu'));
   $('appDeleteAll').addEventListener('click',deleteEverything);
