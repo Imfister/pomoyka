@@ -129,3 +129,17 @@
 .selection-toggle{padding:3px 6px 3px 0;height:28px}
 #clearCategoryButton{min-width:30px;width:30px;height:29px;padding:2px}
 .heading-group{width:100%}
+
+/* v1.8 — выравнивание элементов и отсутствие автоувеличения формы в Safari iOS. */
+@media (pointer:coarse){
+  input,textarea,select{font-size:16px!important}
+}
+/* Заголовок и действия в одной строке; ровный правый край с поисковым полем. */
+.list-heading{flex-direction:row;align-items:center;justify-content:space-between;gap:7px;min-width:0}
+.list-heading .heading-group{min-width:0;width:auto;flex:1 1 auto}
+.list-heading h2{font-size:clamp(17px,4.65vw,25px);line-height:1.2}
+.heading-actions{order:initial;justify-content:flex-end;gap:6px;min-height:34px;margin-left:auto;flex-shrink:0}
+.selection-toggle{min-height:32px;height:32px;padding:4px 12px;border:1px solid #626266;border-radius:12px;background:#29292b;color:#e6e6e9;line-height:20px;box-shadow:none}
+.selection-toggle[aria-pressed="true"]{color:#f3f3f4;border-color:#626266}
+#clearCategoryButton{min-width:33px;width:33px;height:33px;padding:4px}
+#searchInput{font-size:16px}

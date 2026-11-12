@@ -126,6 +126,19 @@ function recordName(entry) {
     (entry.type==='text'?String(entry.text||entry.content||'').trim().split('\n')[0].slice(0,70):'') || 'Без названия';
 }
 function recordText(entry){return entry.text ?? entry.content ?? '';}
+// Единственная проверка для ВСЕХ мест с кнопкой «Копировать».
+// Произвольные файлы не являются переносимым ClipboardItem в Safari.
+function canCopyRecord(entry){
+  if(!entry)return false;
+  if(entry.type==='link' || entry.type==='text'){
+    return Boolean(String(recordText(entry)||'').trim()) && typeof navigator.clipboard?.writeText==='function';
+  }
+  if(entry.type!=='image' || !navigator.clipboard?.write || typeof ClipboardItem==='undefined')return false;
+  if(typeof ClipboardItem.supports==='function' && !ClipboardItem.supports('image/png'))return false;
+  const mime=inferFileMime(entry).toLowerCase();
+  // Не показываем кнопку у неподдерживаемого/неопознанного типа картинки.
+  return ['image/png','image/jpeg','image/webp','image/gif','image/heic','image/heif','image/bmp','image/avif'].includes(mime);
+}
 function timeLabel(timestamp) {
   const date=new Date(timestamp), now=new Date();
   const midnight=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime();
@@ -170,7 +183,7 @@ function render() {
   const container=$('entries');container.replaceChildren();
   if(!visible.length){const p=document.createElement('p');p.className='empty';if(term||inCategory){p.textContent=term?'Ничего не найдено.':'Здесь пока пусто.';}else{p.append(document.createTextNode('Помойка пустая.'),document.createElement('br'),document.createTextNode('Добавьте что-нибудь.'));}container.append(p);return;}
   for(const entry of visible){
-    const row=document.createElement('article');row.className='entry';
+    const row=document.createElement('article');row.className='entry';row.dataset.entryId=String(entry.id);
     row.classList.toggle('selection-mode',state.selecting);
     row.classList.toggle('is-selected',selectedIds.has(entry.id));
     const slide=document.createElement('div');slide.className='entry-slide';
@@ -178,7 +191,7 @@ function render() {
     swipeDelete.setAttribute('aria-label','Удалить: '+recordName(entry));swipeDelete.title='Удалить запись';
     swipeDelete.innerHTML='<img src="./trash-swipe.png" alt="" aria-hidden="true">';
     swipeDelete.addEventListener('click',()=>deleteSwipedEntry(entry.id,row));
-    const main=document.createElement('button');main.type='button';main.className='entry-main';main.setAttribute('aria-label','Открыть: '+recordName(entry));
+    const main=document.createElement('button');main.type='button';main.className='entry-main';main.setAttribute('aria-label','Открыть: '+recordName(entry));if(state.selecting)main.setAttribute('aria-pressed',String(selectedIds.has(entry.id)));
     main.addEventListener('click',()=>{
       if(state.selecting){toggleSelected(entry.id);return;}
       if(row.classList.contains('swipe-open')){closeSwipeRow(row);return;}
@@ -201,11 +214,15 @@ function render() {
     if(state.selecting){const marker=document.createElement('span');marker.className='selection-mark';marker.setAttribute('aria-hidden','true');main.append(marker);}
     main.append(thumb,info);
     const options=document.createElement('button');options.type='button';options.className='entry-options';options.textContent='⋯';options.setAttribute('aria-label','Действия с записью: '+recordName(entry));options.addEventListener('click',()=>openItemMenu(entry.id));
-    const copy=document.createElement('button');copy.type='button';copy.className='entry-copy';copy.title='Копировать';
-    copy.setAttribute('aria-label','Копировать содержимое: '+recordName(entry));
-    copy.innerHTML='<img src="./copy-icon.png" alt="" aria-hidden="true">';
-    copy.addEventListener('click',()=>copyRecordFromTap(entry));
-    slide.append(main,copy,options);
+    slide.append(main);
+    if(canCopyRecord(entry)){
+      const copy=document.createElement('button');copy.type='button';copy.className='entry-copy';copy.title='Копировать';
+      copy.setAttribute('aria-label','Копировать содержимое: '+recordName(entry));
+      copy.innerHTML='<img src="./copy-icon.png" alt="" aria-hidden="true">';
+      copy.addEventListener('click',()=>copyRecordFromTap(entry));
+      slide.append(copy);
+    }
+    slide.append(options);
     row.append(swipeDelete,slide);
     if(!state.selecting)bindEntrySwipe(row,slide,entry.id);
     container.append(row);
@@ -421,7 +438,7 @@ function openItemMenu(id) {
   const hasAttachment=Number(entry.size)>0;
   sizeLabel.textContent=hasAttachment?formatBytes(Number(entry.size)):'';
   sizeLabel.classList.toggle('hidden',!hasAttachment);
-  $('menuCopy').classList.remove('hidden');
+  $('menuCopy').classList.toggle('hidden',!canCopyRecord(entry));
   const serial=++menuShareSerial;
   const button=$('menuShare');
   if(entry.type==='link'||(entry.type==='text'&&recordText(entry))){
@@ -490,10 +507,12 @@ async function openViewer(id) {
   // В просмотре строго две кнопки и в указанном порядке. Другие действия доступны в меню «⋯».
   buttons.append(viewerButton('Переименовать',()=>{closeDialog('viewer');startRename(id)}));
   buttons.append(viewerButton('Поделиться',()=>shareFromTap(sharePayload)));
-  const copy=viewerButton('',()=>copyRecordFromTap(record));
-  copy.classList.add('viewer-copy');copy.setAttribute('aria-label','Копировать содержимое');copy.title='Копировать';
-  copy.innerHTML='<img src="./copy-icon.png" alt="" aria-hidden="true">';
-  buttons.append(copy);
+  if(canCopyRecord(record)){
+    const copy=viewerButton('',()=>copyRecordFromTap(record));
+    copy.classList.add('viewer-copy');copy.setAttribute('aria-label','Копировать содержимое');copy.title='Копировать';
+    copy.innerHTML='<img src="./copy-icon.png" alt="" aria-hidden="true">';
+    buttons.append(copy);
+  }
   showDialog('viewer');
 }
 function formatBytes(n){
@@ -510,32 +529,16 @@ async function copyValue(value){
 // Копирование запускается непосредственно жестом пользователя.
 // WebKit гарантирует формат image/png, но не произвольные файлы PDF, MP3, MOV.
 function copyRecordFromTap(record){
-  if(!record)return;
-  if(record.type==='link' || (record.type==='text'&&recordText(record))){
+  if(!canCopyRecord(record))return;
+  if(record.type==='link' || record.type==='text'){
     copyValue(recordText(record));return;
   }
-  if(!navigator.clipboard?.write || typeof ClipboardItem==='undefined'){
-    showToast('Копирование файлов в этом браузере недоступно');return;
-  }
-  if(record.type==='image'){
-    const promise=readBlob(record.id).then(blob=>{
-      if(!blob)throw new Error('Missing file');
-      return convertToClipboardPNG(blob);
-    });
-    writeBinaryClipboard('image/png',promise);
-    return;
-  }
-  // На платформах, разрешающих нестандартный MIME, пытаемся передать сам файл.
-  const mime=inferFileMime(record);
-  if(typeof ClipboardItem.supports!=='function' || !ClipboardItem.supports(mime)){
-    showToast('iPhone не копирует этот тип файла. Используйте «Поделиться»');
-    return;
-  }
+  // На iOS надёжно поддерживается формат PNG; другие файлы — через «Поделиться».
   const promise=readBlob(record.id).then(blob=>{
     if(!blob)throw new Error('Missing file');
-    return new Blob([blob],{type:mime});
+    return convertToClipboardPNG(blob);
   });
-  writeBinaryClipboard(mime,promise);
+  writeBinaryClipboard('image/png',promise);
 }
 function writeBinaryClipboard(mime,promise){
   // Вызываем write синхронно, а Blob передаём в виде Promise: это важно для iOS.
@@ -589,8 +592,17 @@ function toggleSelectionMode(){
 function toggleSelected(id){
   if(!state.selecting)return;
   if(selectedIds.has(id))selectedIds.delete(id);else selectedIds.add(id);
+  // Не перестраиваем DOM: иначе мигают миниатюры и SVG на каждой отметке.
+  for(const row of $('entries').querySelectorAll('.entry[data-entry-id]')){
+    if(row.dataset.entryId===String(id)){
+      row.classList.toggle('is-selected',selectedIds.has(id));
+      const button=row.querySelector('.entry-main');
+      if(button)button.setAttribute('aria-pressed',String(selectedIds.has(id)));
+      break;
+    }
+  }
   bulkSharePayload=null;bulkShareSerial++;
-  render();
+  updateSelectionUI();
   if(selectedIds.size)prepareBulkShare();
 }
 async function buildBulkShare(ids){
@@ -630,7 +642,7 @@ async function prepareBulkShare(){
 async function deleteSelected(){
   if(!state.selecting||!selectedIds.size)return;
   const ids=[...selectedIds];
-  if(!confirm(`Удалить выбранные записи (${ids.length})? Отменить это нельзя.`))return;
+  if(!confirm(`Удалить выбранные записи (${ids.length})?\nДействие отменить нельзя.`))return;
   try{
     await deleteRecords(ids);
     state.selecting=false;selectedIds.clear();bulkShareSerial++;bulkSharePayload=null;
@@ -648,7 +660,7 @@ async function deleteCategory(){
   const type=state.mode,records=state.entries.filter(r=>r.type===type);
   if(!records.length){showToast('Категория пуста');return;}
   const label=type==='file'?'«Другие файлы»':`«${({link:'Ссылки',image:'Фото',video:'Видео',text:'Текст'})[type]}»`;
-  if(!confirm(`Удалить все записи из категории ${label} (${records.length})? Отменить это нельзя.`))return;
+  if(!confirm(`Удалить все записи из категории ${label} (${records.length})?\nДействие отменить нельзя.`))return;
   try{await deleteRecords(records.map(r=>r.id));await refresh();showToast('Категория очищена');}catch{showToast('Ошибка удаления');}
 }
 async function deleteEverything(){
@@ -658,60 +670,91 @@ async function deleteEverything(){
   try{await clearAllRecords();setMode('home');await refresh();showToast('Помойка очищена');}catch{showToast('Ошибка удаления');}
 }
 async function importClipboard(){
-  // iOS показывает системную плашку Paste; других окон не открываем.
-  if(!navigator.clipboard){showToast('Буфер недоступен');return;}
+  // Запускаем чтение ПРЯМО из нажатия — важно для iOS Paste.
+  const clipboard=navigator.clipboard;
+  if(!clipboard){showToast('Буфер недоступен');return;}
   try{
-    if(typeof navigator.clipboard.read==='function'){
-      const selection=await navigator.clipboard.read();
-      if(!selection.length){showToast('Пустой буфер');return;}
-      const files=[];
-      let plainText='';let unsupported=false;
-      for(const item of selection){
+    if(typeof clipboard.read==='function'){
+      const items=await clipboard.read();
+      if(!items.length){showToast('Пустой буфер');return;}
+      const files=[];const texts=[];let hadUnsupported=false;
+      for(const item of items){
         const types=Array.from(item.types||[]);
-        // Предпочитаем файл текстовому представлению (например, фотография + подпись).
-        const fileTypes=types.filter(type=>{
-          return /^image\//i.test(type)||/^video\//i.test(type)||/^audio\//i.test(type)||
-            /^application\/(pdf|zip|octet-stream|json|msword|vnd\.)/i.test(type);
-        });
-        let savedFile=false;
-        for(const mime of fileTypes){
+        // Safari иногда предлагает одновременно image/png и text/html.
+        // Сначала читаем картинку/файл, а не её текстовое описание.
+        const binaries=types.filter(type=>
+          /^(image|video|audio)\//i.test(type) ||
+          /^application\/(pdf|zip|octet-stream|json|msword|vnd\.)/i.test(type));
+        let gotBinary=false;
+        for(const mime of binaries){
           try{
             const blob=await item.getType(mime);
-            if(!blob||!blob.size)continue;
+            if(!(blob instanceof Blob)||!blob.size)continue;
             const ext=({
-              'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/gif':'gif','image/heic':'heic',
+              'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/gif':'gif',
+              'image/heic':'heic','image/heif':'heif','image/avif':'avif',
               'video/mp4':'mp4','video/quicktime':'mov','audio/mpeg':'mp3','audio/mp4':'m4a',
               'application/pdf':'pdf','application/zip':'zip','application/json':'json'
-            })[mime.toLowerCase()]||mime.split('/')[1]?.replace(/[^a-z0-9]+/gi,'-')||'bin';
+            })[mime.toLowerCase()] || mime.split('/')[1]?.replace(/[^a-z0-9]+/gi,'-') || 'bin';
             files.push(new File([blob],`Из буфера.${ext}`,{type:mime}));
-            savedFile=true;break;
-          }catch{unsupported=true;}
+            gotBinary=true;
+            break;
+          }catch(error){console.info('Формат буфера не прочитан:',mime,error?.name);hadUnsupported=true;}
         }
-        if(savedFile)continue;
-        const textType=types.includes('text/plain')?'text/plain':types.includes('text/uri-list')?'text/uri-list':null;
-        if(textType){
-          try{const value=await (await item.getType(textType)).text();if(value.trim())plainText+=(plainText?'\n':'')+value;}catch{unsupported=true;}
-        }else if(types.length){unsupported=true;}
+        if(gotBinary)continue;
+        let gotText=false;
+        for(const mime of ['text/plain','text/uri-list','text/html']){
+          if(!types.includes(mime))continue;
+          try{
+            const raw=(await item.getType(mime)).text();
+            const value=await raw;
+            let text=value;
+            if(mime==='text/html'){
+              // Только локальный разбор HTML, без выполнения скриптов и сетевой загрузки.
+              const documentFragment=new DOMParser().parseFromString(value,'text/html');
+              // Некоторые источники копируют картинку как встроенный data:image/... в HTML.
+              // Это дополнительный вариант, когда бинарный формат не был доступен.
+              const source=documentFragment.querySelector('img[src^="data:image/"]')?.getAttribute('src');
+              if(source && source.length<40_000_000){
+                const match=/^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=]+)$/i.exec(source);
+                if(match){
+                  try{
+                    const binary=atob(match[2]);
+                    const bytes=new Uint8Array(binary.length);
+                    for(let k=0;k<binary.length;k++)bytes[k]=binary.charCodeAt(k);
+                    const subtype=match[1].split('/')[1].replace('jpeg','jpg');
+                    const file=new File([bytes],`Из буфера.${subtype}`,{type:match[1]});
+                    files.push(file);gotBinary=true;break;
+                  }catch(error){console.info('Встроенное изображение недоступно:',error?.name);}
+                }
+              }
+              text=documentFragment.body?.textContent||'';
+              if(!text.trim())text=documentFragment.querySelector('a[href]')?.getAttribute('href')||'';
+            }
+            if(text.trim()){texts.push(text);gotText=true;break;}
+          }catch(error){console.info('Текстовый формат недоступен:',mime,error?.name);}
+        }
+        if(!gotText&&types.length)hadUnsupported=true;
       }
       if(files.length){await saveFiles(files);return;}
-      if(plainText.trim()){await saveText(plainText);return;}
-      showToast(unsupported?'Формат буфера не поддерживается iPhone':'Пустой буфер');
+      if(texts.length){await saveText(texts.join('\n'));return;}
+      showToast(hadUnsupported?'Этот формат буфера не поддерживается iPhone':'Пустой буфер');
       return;
     }
-    if(typeof navigator.clipboard.readText==='function'){
-      const value=await navigator.clipboard.readText();
+    if(typeof clipboard.readText==='function'){
+      const value=await clipboard.readText();
       if(value.trim()){await saveText(value);return;}
       showToast('Пустой буфер');return;
     }
     showToast('Буфер недоступен');
   }catch(error){
+    // Отмена системной плашки Paste — это не пустой буфер.
     if(error?.name==='NotAllowedError'||error?.name==='AbortError')return;
     if(error?.name==='NotFoundError'){showToast('Пустой буфер');return;}
     console.info('Ошибка чтения буфера:',error?.name);
     showToast('Не удалось прочитать буфер');
   }
 }
-
 function bindEvents(){
   document.querySelectorAll('.category').forEach(button=>button.addEventListener('click',()=>setMode(state.mode===button.dataset.category?'home':button.dataset.category)));
   $('otherFilesButton').addEventListener('click',()=>setMode('file'));
