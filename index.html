@@ -13,8 +13,8 @@
   <link rel="manifest" href="./manifest.webmanifest?v=5">
   <link rel="apple-touch-icon" href="./icon-180.png?v=5">
   <link rel="icon" href="./icon-192.png?v=5" type="image/png">
-  <link rel="stylesheet" href="./style.css?v=8">
-  <script src="./app.js?v=8" defer></script>
+  <link rel="stylesheet" href="./style.css?v=9">
+  <script src="./app.js?v=9" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -58,6 +58,7 @@
           <button type="button" id="clearCategoryButton" class="icon-button hidden" aria-label="Удалить все записи этой категории" title="Очистить категорию">
             <img class="category-trash-icon" src="./trash-swipe.png" alt="" aria-hidden="true">
           </button>
+          <button type="button" id="selectionToggle" class="selection-toggle" aria-pressed="false">Выбор</button>
         </div>
       </div>
       <div class="search-wrap" id="searchWrap">
@@ -85,6 +86,13 @@
           <span class="action-label">Из буфера</span>
         </button>
       </div>
+      <div id="selectionBar" class="selection-bar hidden" aria-live="polite">
+        <span id="selectionCount" class="selection-count">Выбрано: 0</span>
+        <div class="selection-buttons">
+          <button id="selectionShare" class="selection-action" type="button" disabled>Поделиться</button>
+          <button id="selectionDelete" class="selection-action selection-delete" type="button" disabled>Удалить</button>
+        </div>
+      </div>
     </footer>
   </div>
 
@@ -102,7 +110,7 @@
   <dialog id="itemMenu" class="sheet"><div class="dialog-inner">
     <div class="dialog-header"><div class="item-menu-heading"><h3 id="itemMenuTitle">Запись</h3><p id="itemMenuSize" class="item-menu-size hidden"></p></div><button class="close-button" type="button" data-close="itemMenu" aria-label="Закрыть"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M18 6 6 18"/></svg></button></div>
     <button id="menuRename" class="sheet-option" type="button">Переименовать</button>
-    <button id="menuCopy" class="sheet-option hidden" type="button">Копировать содержимое</button>
+    <button id="menuCopy" class="sheet-option" type="button">Копировать</button>
     <button id="menuShare" class="sheet-option" type="button">Поделиться</button>
     <button id="menuDelete" class="sheet-option danger" type="button">Удалить запись</button>
   </div></dialog>

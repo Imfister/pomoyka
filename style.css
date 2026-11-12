@@ -97,3 +97,35 @@
 /* Safari: не рисовать дополнительную лупу внутри поля поиска. */
 #searchInput{-webkit-appearance:none;appearance:none}
 #searchInput::-webkit-search-decoration,#searchInput::-webkit-search-results-button,#searchInput::-webkit-search-results-decoration{display:none}
+
+
+/* v1.7 — копирование и множественный выбор. */
+.swipe-delete img{width:21.62px;height:23.97px}
+.heading-actions{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.selection-toggle{border:0;background:transparent;color:#e6e6e9;font-size:14px;font-weight:500;padding:8px 0 8px 8px;line-height:20px;white-space:nowrap}
+.selection-toggle[aria-pressed="true"]{color:#a7c9ff}
+.entry-copy{display:grid;place-items:center;height:44px;width:32px;flex:0 0 32px;border:0;background:transparent;color:#a3a3a7;padding:7px;opacity:1;transition:opacity .20s ease}
+.entry-copy img{display:block;width:23px;height:23px;object-fit:contain;pointer-events:none}
+.entry.swipe-open .entry-copy{pointer-events:none}
+.entry.selection-mode{touch-action:pan-y}
+.entry.selection-mode .entry-slide{transform:translate3d(0,0,0)!important}
+.entry.selection-mode .entry-options,.entry.selection-mode .entry-copy,.entry.selection-mode .swipe-delete{display:none!important}
+.entry.selection-mode .entry-main{padding-left:0}
+.selection-mark{display:grid;place-items:center;flex:0 0 23px;width:23px;height:23px;border:1.5px solid #747478;border-radius:50%;background:transparent;color:transparent;font-size:16px;font-weight:700;line-height:1}
+.entry.is-selected .selection-mark{background:#f4f4f4;border-color:#f4f4f4;color:#151515}
+.entry.is-selected .selection-mark::before{content:'✓'}
+.bottom-actions.selecting .quick-text-form,.bottom-actions.selecting .footer-buttons{display:none!important}
+.selection-bar{display:flex;flex-direction:column;gap:9px;align-items:stretch}
+.selection-count{text-align:center;color:#a9a9ac;font-size:13px;line-height:18px}
+.selection-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.selection-action{height:49px;min-width:0;border:1px solid #505052;border-radius:15px;background:#242424;color:#f3f3f4;font-size:15px;font-weight:600}
+.selection-delete{background:#5b2b30;border-color:#784248;color:#ffd7dc}
+.selection-action:disabled{opacity:.42}
+.viewer-actions .viewer-copy{flex:0 0 45px;width:45px;height:45px;display:grid;place-items:center;padding:10px}
+.viewer-copy img{display:block;width:24px;height:24px;object-fit:contain}
+/* Кнопка «Выбор» — тонкая, в левом верхнем углу списка; мусорка категории слева от неё. */
+.list-heading{flex-direction:column;align-items:stretch;gap:5px}
+.heading-actions{order:-1;justify-content:flex-start;min-height:28px;gap:4px}
+.selection-toggle{padding:3px 6px 3px 0;height:28px}
+#clearCategoryButton{min-width:30px;width:30px;height:29px;padding:2px}
+.heading-group{width:100%}

@@ -15,7 +15,10 @@ const ICONS = {
 };
 
 const $ = id => document.getElementById(id);
-const state = {db:null, entries:[], mode:'home', searching:false, currentId:null, renameId:null};
+const state = {db:null, entries:[], mode:'home', searching:false, currentId:null, renameId:null, selecting:false};
+const selectedIds=new Set();
+let bulkSharePayload=null;
+let bulkShareSerial=0;
 let thumbUrls = [];
 let viewerUrl = null;
 let toastTimeout;
@@ -149,24 +152,27 @@ function render() {
   const inCategory=!['home','all'].includes(mode);
   let list=state.entries.filter(record=>(!inCategory||record.type===mode));
   if(term)list=list.filter(record=>[recordName(record),record.originalName,recordText(record)].some(value=>String(value||'').toLocaleLowerCase('ru-RU').includes(term)));
-  const limit=mode==='home'&&!term?4:Infinity;
+  const limit=mode==='home'&&!term&&!state.selecting?4:Infinity;
   const visible=list.slice(0,limit);
   $('listTitle').textContent=mode==='home'?(term?'Результаты поиска':'Последние добавления'):mode==='all'?'Все добавления':mode==='file'?'Другие файлы':({link:'Ссылки',image:'Фото',video:'Видео',text:'Текст'})[mode];
   $('searchInput').placeholder=({link:'Поиск по ссылкам',image:'Поиск по фото',video:'Поиск по видео',home:'Поиск по помойке',all:'Поиск по помойке'})[mode] || 'Поиск по записям';
   $('searchInput').setAttribute('aria-label',$('searchInput').placeholder);
   $('backButton').classList.toggle('hidden',mode==='home');
   $('clearCategoryButton').classList.toggle('hidden',!inCategory);
-  $('moreButton').classList.toggle('hidden',!(mode==='home'&&!term&&list.length>4));
+  $('moreButton').classList.toggle('hidden',state.selecting||!(mode==='home'&&!term&&list.length>4));
   $('moreButton').textContent=`Ещё (${list.length-4})`;
   const extra=state.entries.filter(e=>e.type==='file').length;
   $('otherFilesButton').classList.toggle('hidden',extra===0);
   $('otherCount').textContent=extra;
+  updateSelectionUI();
   document.querySelectorAll('.category').forEach(btn=>btn.classList.toggle('active',btn.dataset.category===mode));
 
   const container=$('entries');container.replaceChildren();
   if(!visible.length){const p=document.createElement('p');p.className='empty';if(term||inCategory){p.textContent=term?'Ничего не найдено.':'Здесь пока пусто.';}else{p.append(document.createTextNode('Помойка пустая.'),document.createElement('br'),document.createTextNode('Добавьте что-нибудь.'));}container.append(p);return;}
   for(const entry of visible){
     const row=document.createElement('article');row.className='entry';
+    row.classList.toggle('selection-mode',state.selecting);
+    row.classList.toggle('is-selected',selectedIds.has(entry.id));
     const slide=document.createElement('div');slide.className='entry-slide';
     const swipeDelete=document.createElement('button');swipeDelete.type='button';swipeDelete.className='swipe-delete';
     swipeDelete.setAttribute('aria-label','Удалить: '+recordName(entry));swipeDelete.title='Удалить запись';
@@ -174,6 +180,7 @@ function render() {
     swipeDelete.addEventListener('click',()=>deleteSwipedEntry(entry.id,row));
     const main=document.createElement('button');main.type='button';main.className='entry-main';main.setAttribute('aria-label','Открыть: '+recordName(entry));
     main.addEventListener('click',()=>{
+      if(state.selecting){toggleSelected(entry.id);return;}
       if(row.classList.contains('swipe-open')){closeSwipeRow(row);return;}
       openViewer(entry.id);
     });
@@ -190,11 +197,17 @@ function render() {
     const info=document.createElement('div');info.className='entry-info';
     const name=document.createElement('div');name.className='entry-name';name.textContent=recordName(entry);
     const meta=document.createElement('div');meta.className='entry-meta';meta.textContent=`${LABELS[entry.type]||'Файл'} · ${timeLabel(entry.created)}`;
-    info.append(name,meta);main.append(thumb,info);
+    info.append(name,meta);
+    if(state.selecting){const marker=document.createElement('span');marker.className='selection-mark';marker.setAttribute('aria-hidden','true');main.append(marker);}
+    main.append(thumb,info);
     const options=document.createElement('button');options.type='button';options.className='entry-options';options.textContent='⋯';options.setAttribute('aria-label','Действия с записью: '+recordName(entry));options.addEventListener('click',()=>openItemMenu(entry.id));
-    slide.append(main,options);
+    const copy=document.createElement('button');copy.type='button';copy.className='entry-copy';copy.title='Копировать';
+    copy.setAttribute('aria-label','Копировать содержимое: '+recordName(entry));
+    copy.innerHTML='<img src="./copy-icon.png" alt="" aria-hidden="true">';
+    copy.addEventListener('click',()=>copyRecordFromTap(entry));
+    slide.append(main,copy,options);
     row.append(swipeDelete,slide);
-    bindEntrySwipe(row,slide,entry.id);
+    if(!state.selecting)bindEntrySwipe(row,slide,entry.id);
     container.append(row);
   }
 }
@@ -208,6 +221,8 @@ function closeSwipeRow(row,animate=true){
   slide.style.transform='translate3d(0,0,0)';
   const options=row.querySelector('.entry-options');
   if(options){options.style.transition=animate?'opacity .20s ease':'none';options.style.opacity='1';}
+  const copy=row.querySelector('.entry-copy');
+  if(copy){copy.style.transition=animate?'opacity .20s ease':'none';copy.style.opacity='1';}
   row.classList.remove('swipe-open');
   if(openSwipeRow===row)openSwipeRow=null;
 }
@@ -218,6 +233,8 @@ function revealSwipeRow(row){
   slide.style.transform=`translate3d(-${SWIPE_ACTION_WIDTH}px,0,0)`;
   const options=row.querySelector('.entry-options');
   if(options){options.style.transition='opacity .20s ease';options.style.opacity='0';}
+  const copy=row.querySelector('.entry-copy');
+  if(copy){copy.style.transition='opacity .20s ease';copy.style.opacity='0';}
   row.classList.add('swipe-open');
   openSwipeRow=row;
 }
@@ -273,6 +290,8 @@ function bindEntrySwipe(row,slide,id){
     slide.style.transform=`translate3d(${position}px,0,0)`;
     const options=row.querySelector('.entry-options');
     if(options){options.style.transition='none';options.style.opacity=String(1-Math.min(1,Math.abs(position)/SWIPE_ACTION_WIDTH));}
+    const copy=row.querySelector('.entry-copy');
+    if(copy){copy.style.transition='none';copy.style.opacity=String(1-Math.min(1,Math.abs(position)/SWIPE_ACTION_WIDTH));}
   },{passive:false});
   row.addEventListener('touchend',event=>{
     if(!gesture)return;
@@ -298,6 +317,7 @@ function bindEntrySwipe(row,slide,id){
 
 function setMode(mode) {
   state.mode=mode;
+  state.selecting=false;selectedIds.clear();bulkShareSerial++;bulkSharePayload=null;
   $('searchInput').value='';
   render();
 }
@@ -401,7 +421,7 @@ function openItemMenu(id) {
   const hasAttachment=Number(entry.size)>0;
   sizeLabel.textContent=hasAttachment?formatBytes(Number(entry.size)):'';
   sizeLabel.classList.toggle('hidden',!hasAttachment);
-  $('menuCopy').classList.toggle('hidden',!(entry.type==='link'||(entry.type==='text'&&Boolean(recordText(entry)))));
+  $('menuCopy').classList.remove('hidden');
   const serial=++menuShareSerial;
   const button=$('menuShare');
   if(entry.type==='link'||(entry.type==='text'&&recordText(entry))){
@@ -470,6 +490,10 @@ async function openViewer(id) {
   // В просмотре строго две кнопки и в указанном порядке. Другие действия доступны в меню «⋯».
   buttons.append(viewerButton('Переименовать',()=>{closeDialog('viewer');startRename(id)}));
   buttons.append(viewerButton('Поделиться',()=>shareFromTap(sharePayload)));
+  const copy=viewerButton('',()=>copyRecordFromTap(record));
+  copy.classList.add('viewer-copy');copy.setAttribute('aria-label','Копировать содержимое');copy.title='Копировать';
+  copy.innerHTML='<img src="./copy-icon.png" alt="" aria-hidden="true">';
+  buttons.append(copy);
   showDialog('viewer');
 }
 function formatBytes(n){
@@ -482,6 +506,139 @@ async function copyValue(value){
   if(!navigator.clipboard?.writeText){showToast('Копирование недоступно в этом браузере.');return;}
   try{await navigator.clipboard.writeText(value);showToast('Скопировано');}catch{showToast('Не удалось скопировать');}
 }
+
+// Копирование запускается непосредственно жестом пользователя.
+// WebKit гарантирует формат image/png, но не произвольные файлы PDF, MP3, MOV.
+function copyRecordFromTap(record){
+  if(!record)return;
+  if(record.type==='link' || (record.type==='text'&&recordText(record))){
+    copyValue(recordText(record));return;
+  }
+  if(!navigator.clipboard?.write || typeof ClipboardItem==='undefined'){
+    showToast('Копирование файлов в этом браузере недоступно');return;
+  }
+  if(record.type==='image'){
+    const promise=readBlob(record.id).then(blob=>{
+      if(!blob)throw new Error('Missing file');
+      return convertToClipboardPNG(blob);
+    });
+    writeBinaryClipboard('image/png',promise);
+    return;
+  }
+  // На платформах, разрешающих нестандартный MIME, пытаемся передать сам файл.
+  const mime=inferFileMime(record);
+  if(typeof ClipboardItem.supports!=='function' || !ClipboardItem.supports(mime)){
+    showToast('iPhone не копирует этот тип файла. Используйте «Поделиться»');
+    return;
+  }
+  const promise=readBlob(record.id).then(blob=>{
+    if(!blob)throw new Error('Missing file');
+    return new Blob([blob],{type:mime});
+  });
+  writeBinaryClipboard(mime,promise);
+}
+function writeBinaryClipboard(mime,promise){
+  // Вызываем write синхронно, а Blob передаём в виде Promise: это важно для iOS.
+  try{
+    const item=new ClipboardItem({[mime]:promise});
+    Promise.resolve(navigator.clipboard.write([item])).then(()=>showToast('Скопировано')).catch(error=>{
+      console.info('Clipboard write:',error?.name);
+      showToast('iOS не позволяет скопировать этот файл');
+    });
+  }catch(error){
+    console.info('ClipboardItem:',error?.name);
+    showToast('iOS не позволяет скопировать этот файл');
+  }
+}
+async function convertToClipboardPNG(blob){
+  if(blob.type==='image/png')return blob;
+  const url=URL.createObjectURL(blob);
+  try{
+    const image=new Image();
+    await new Promise((resolve,reject)=>{
+      image.onload=resolve;image.onerror=reject;image.src=url;
+    });
+    if(!image.naturalWidth||!image.naturalHeight)throw new Error('Image decode failed');
+    const scale=Math.min(1,4096/Math.max(image.naturalWidth,image.naturalHeight));
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.round(image.naturalWidth*scale);
+    canvas.height=Math.round(image.naturalHeight*scale);
+    canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);
+    const png=await new Promise((resolve,reject)=>canvas.toBlob(result=>result?resolve(result):reject(new Error('No PNG')),'image/png'));
+    return png;
+  }finally{URL.revokeObjectURL(url);}
+}
+
+function updateSelectionUI(){
+  const selecting=state.selecting;
+  $('selectionToggle').textContent=selecting?'Отмена':'Выбор';
+  $('selectionToggle').setAttribute('aria-pressed',String(selecting));
+  $('selectionBar').classList.toggle('hidden',!selecting);
+  $('selectionBar').closest('.bottom-actions').classList.toggle('selecting',selecting);
+  $('selectionCount').textContent='Выбрано: '+selectedIds.size;
+  $('selectionDelete').disabled=selectedIds.size===0;
+  $('selectionShare').disabled=selectedIds.size===0||!bulkSharePayload;
+  $('selectionShare').textContent=selectedIds.size>0&&!bulkSharePayload?'Подготовка…':'Поделиться';
+  $('clearCategoryButton').disabled=selecting;
+}
+function toggleSelectionMode(){
+  state.selecting=!state.selecting;
+  selectedIds.clear();bulkSharePayload=null;bulkShareSerial++;
+  render();
+}
+function toggleSelected(id){
+  if(!state.selecting)return;
+  if(selectedIds.has(id))selectedIds.delete(id);else selectedIds.add(id);
+  bulkSharePayload=null;bulkShareSerial++;
+  render();
+  if(selectedIds.size)prepareBulkShare();
+}
+async function buildBulkShare(ids){
+  const records=ids.map(id=>state.entries.find(record=>record.id===id)).filter(Boolean);
+  if(!records.length)return null;
+  const files=[],textParts=[];
+  for(const record of records){
+    if(record.type==='link' || (record.type==='text'&&recordText(record))){
+      textParts.push(recordText(record));
+    }else{
+      const blob=await readBlob(record.id);
+      if(!(blob instanceof Blob))throw new Error('Missing attachment '+record.id);
+      files.push(new File([blob],record.originalName||'Файл',{type:inferFileMime(record)}));
+    }
+  }
+  if(!files.length)return {text:textParts.join('\n\n')};
+  if(textParts.length){
+    files.push(new File([textParts.join('\n\n')],'Текст и ссылки.txt',{type:'text/plain'}));
+  }
+  return {files};
+}
+async function prepareBulkShare(){
+  const serial=++bulkShareSerial;
+  const ids=[...selectedIds];
+  try{
+    const payload=await buildBulkShare(ids);
+    if(serial!==bulkShareSerial||!state.selecting)return;
+    bulkSharePayload=payload;
+    updateSelectionUI();
+  }catch(error){
+    if(serial!==bulkShareSerial)return;
+    bulkSharePayload=null;
+    updateSelectionUI();
+    showToast('Не удалось подготовить выбранные файлы');
+  }
+}
+async function deleteSelected(){
+  if(!state.selecting||!selectedIds.size)return;
+  const ids=[...selectedIds];
+  if(!confirm(`Удалить выбранные записи (${ids.length})? Отменить это нельзя.`))return;
+  try{
+    await deleteRecords(ids);
+    state.selecting=false;selectedIds.clear();bulkShareSerial++;bulkSharePayload=null;
+    await refresh();
+    showToast('Выбранные записи удалены');
+  }catch(error){showToast('Не удалось удалить выбранные записи');}
+}
+
 async function deleteOne(id){
   const record=state.entries.find(r=>r.id===id);if(!record)return;
   if(!confirm(`Удалить «${recordName(record)}»?`))return;
@@ -501,40 +658,53 @@ async function deleteEverything(){
   try{await clearAllRecords();setMode('home');await refresh();showToast('Помойка очищена');}catch{showToast('Ошибка удаления');}
 }
 async function importClipboard(){
-  // Системный запрос «Paste» вызывается только прямым нажатием на кнопку.
-  // Ни одно дополнительное окно внутри приложения не открывается.
+  // iOS показывает системную плашку Paste; других окон не открываем.
   if(!navigator.clipboard){showToast('Буфер недоступен');return;}
   try{
     if(typeof navigator.clipboard.read==='function'){
       const selection=await navigator.clipboard.read();
+      if(!selection.length){showToast('Пустой буфер');return;}
+      const files=[];
+      let plainText='';let unsupported=false;
       for(const item of selection){
-        const imageType=item.types.find(type=>/^image\/(png|jpeg|webp)$/i.test(type));
-        if(imageType){
-          const blob=await item.getType(imageType);
-          const ext=imageType==='image/jpeg'?'jpg':imageType.split('/')[1];
-          await saveFiles([new File([blob],`Из буфера.${ext}`,{type:imageType})]);
-          return;
+        const types=Array.from(item.types||[]);
+        // Предпочитаем файл текстовому представлению (например, фотография + подпись).
+        const fileTypes=types.filter(type=>{
+          return /^image\//i.test(type)||/^video\//i.test(type)||/^audio\//i.test(type)||
+            /^application\/(pdf|zip|octet-stream|json|msword|vnd\.)/i.test(type);
+        });
+        let savedFile=false;
+        for(const mime of fileTypes){
+          try{
+            const blob=await item.getType(mime);
+            if(!blob||!blob.size)continue;
+            const ext=({
+              'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/gif':'gif','image/heic':'heic',
+              'video/mp4':'mp4','video/quicktime':'mov','audio/mpeg':'mp3','audio/mp4':'m4a',
+              'application/pdf':'pdf','application/zip':'zip','application/json':'json'
+            })[mime.toLowerCase()]||mime.split('/')[1]?.replace(/[^a-z0-9]+/gi,'-')||'bin';
+            files.push(new File([blob],`Из буфера.${ext}`,{type:mime}));
+            savedFile=true;break;
+          }catch{unsupported=true;}
         }
-        const textType=item.types.includes('text/plain')?'text/plain':item.types.includes('text/uri-list')?'text/uri-list':null;
+        if(savedFile)continue;
+        const textType=types.includes('text/plain')?'text/plain':types.includes('text/uri-list')?'text/uri-list':null;
         if(textType){
-          const blob=await item.getType(textType);
-          const value=await blob.text();
-          if(value.trim()){await saveText(value);return;}
-        }
+          try{const value=await (await item.getType(textType)).text();if(value.trim())plainText+=(plainText?'\n':'')+value;}catch{unsupported=true;}
+        }else if(types.length){unsupported=true;}
       }
-      showToast('Пустой буфер');
+      if(files.length){await saveFiles(files);return;}
+      if(plainText.trim()){await saveText(plainText);return;}
+      showToast(unsupported?'Формат буфера не поддерживается iPhone':'Пустой буфер');
       return;
     }
     if(typeof navigator.clipboard.readText==='function'){
       const value=await navigator.clipboard.readText();
       if(value.trim()){await saveText(value);return;}
-      showToast('Пустой буфер');
-      return;
+      showToast('Пустой буфер');return;
     }
     showToast('Буфер недоступен');
   }catch(error){
-    // На iOS пользователь может отменить системную плашку Paste.
-    // В таком случае не открываем других окон и не показываем ложное «Пустой буфер».
     if(error?.name==='NotAllowedError'||error?.name==='AbortError')return;
     if(error?.name==='NotFoundError'){showToast('Пустой буфер');return;}
     console.info('Ошибка чтения буфера:',error?.name);
@@ -549,6 +719,9 @@ function bindEvents(){
   $('moreButton').addEventListener('click',()=>setMode('all'));
   $('searchInput').addEventListener('input',render);
   $('clearCategoryButton').addEventListener('click',deleteCategory);
+  $('selectionToggle').addEventListener('click',toggleSelectionMode);
+  $('selectionShare').addEventListener('click',()=>{if(bulkSharePayload)shareFromTap(bulkSharePayload);});
+  $('selectionDelete').addEventListener('click',deleteSelected);
   $('appMenuButton').addEventListener('click',()=>showDialog('appMenu'));
   $('appDeleteAll').addEventListener('click',deleteEverything);
   // Запускаем системный file picker непосредственно из нажатия — без промежуточного окна.
@@ -563,7 +736,8 @@ function bindEvents(){
   $('menuShare').addEventListener('click',()=>{const payload=menuSharePayload;closeDialog('itemMenu');shareFromTap(payload);});
   $('menuCopy').addEventListener('click',()=>{
     const entry=state.entries.find(r=>r.id===state.currentId);
-    if(entry){copyValue(recordText(entry));closeDialog('itemMenu');}
+    closeDialog('itemMenu');
+    if(entry)copyRecordFromTap(entry);
   });
   $('clipboardButton').addEventListener('click',importClipboard);
   const quickText=$('quickText'),quickSave=$('quickTextSave');
