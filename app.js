@@ -355,8 +355,6 @@ function bindEvents(){
   $('appDeleteAll').addEventListener('click',deleteEverything);
   // Запускаем системный file picker непосредственно из нажатия — без промежуточного окна.
   $('attachButton').addEventListener('click',()=>$('filesInput').click());
-  // Ручной ввод текста сохранили в настройках, чтобы функция не пропала.
-  $('appAddText').addEventListener('click',()=>{closeDialog('appMenu');$('textForm').reset();showDialog('textDialog');});
   $('filesInput').addEventListener('change',async e=>{const files=Array.from(e.target.files);e.target.value='';await saveFiles(files)});
   $('textForm').addEventListener('submit',async event=>{
     event.preventDefault();const value=$('newText').value,title=$('newTitle').value;
@@ -373,16 +371,15 @@ function bindEvents(){
     const entry=state.entries.find(r=>r.id===state.currentId);
     if(entry){copyValue(recordText(entry));closeDialog('itemMenu');}
   });
-  $('clipboardButton').addEventListener('click',importClipboard);
+  $('clipboardPasteButton').addEventListener('click',importClipboard);
+  $('clipboardButton').addEventListener('click',()=>{$('textForm').reset();showDialog('textDialog');});
   $('pasteForm').addEventListener('submit',async event=>{
     event.preventDefault();try{if(await saveText($('pasteText').value))closeDialog('pasteDialog');}catch(error){showToast(getErrorMessage(error));}
   });
   document.querySelectorAll('[data-close]').forEach(button=>button.addEventListener('click',()=>closeDialog(button.dataset.close)));
-  // Закрываем модальные окна нажатием именно за пределами их прямоугольника.
+  // Закрываем модальные окна обычным нажатием по затемнённой области, как в настройках.
   document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{
-    if(event.target!==dialog)return;
-    const rect=dialog.getBoundingClientRect();
-    if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)closeDialog(dialog.id);
+    if(event.target===dialog)closeDialog(dialog.id);
   }));
   $('viewer').addEventListener('close',()=>{const video=$('viewerBody').querySelector('video');if(video)video.pause();releaseViewer();$('viewerBody').replaceChildren();$('viewerActions').replaceChildren();});
   window.addEventListener('pagehide',()=>{releaseThumbs();releaseViewer();});

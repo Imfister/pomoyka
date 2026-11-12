@@ -13,8 +13,8 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" href="./icon-180.png">
   <link rel="icon" href="./icon-192.png" type="image/png">
-  <link rel="stylesheet" href="./style.css?v=3">
-  <script src="./app.js?v=3" defer></script>
+  <link rel="stylesheet" href="./style.css?v=4">
+  <script src="./app.js?v=4" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -75,9 +75,12 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12.5 14.6 6a3.25 3.25 0 1 1 4.6 4.6l-9 9a5.3 5.3 0 0 1-7.5-7.5l9-9"/></svg>
         Прикрепить
       </button>
-      <button id="clipboardButton" class="action-button action-secondary" type="button">
+      <button id="clipboardPasteButton" class="action-circle-button" type="button" aria-label="Из буфера" title="Из буфера">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5.5" y="5" width="13" height="16" rx="2"/><path d="M9 5V3h6v2M9 11h6m-6 4h6"/></svg>
-        Из буфера
+      </button>
+      <button id="clipboardButton" class="action-button action-secondary" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14.5 3v5h4.5M8.5 12h7M8.5 16h5"/></svg>
+        Добавить текст
       </button>
     </footer>
   </div>
@@ -110,9 +113,8 @@
   </div></dialog>
 
   <dialog id="appMenu" class="sheet"><div class="dialog-inner">
-    <div class="dialog-header"><h3>Помойка</h3><button class="close-button" type="button" data-close="appMenu" aria-label="Закрыть">×</button></div>
-    <p class="privacy-note">Записи хранятся только на этом устройстве. Они не загружаются в GitHub или облако.</p>
-    <button id="appAddText" class="sheet-option" type="button">Добавить текст или ссылку вручную</button>
+    <div class="dialog-header"><h3>Настройки</h3><button class="close-button" type="button" data-close="appMenu" aria-label="Закрыть">×</button></div>
+    <p class="privacy-note">Записи хранятся только на этом устройстве.<br>Они не загружаются в GitHub или облако.</p>
     <button id="appDeleteAll" class="sheet-option danger" type="button">Удалить вообще всё</button>
   </div></dialog>
 
