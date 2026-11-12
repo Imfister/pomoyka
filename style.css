@@ -76,10 +76,24 @@
 .swipe-delete:active{background:#b92430}
 
 
-/* v1.5: центр текста в каждой нижней кнопке, иконка слева от надписи. */
-.footer-buttons .action-button{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);justify-items:center;align-items:center;column-gap:0;padding:10px 6px}
-.footer-buttons .action-button svg{position:static;grid-column:1;grid-row:1;justify-self:end;margin-right:7px;width:19px;height:19px;flex:none}
-.footer-buttons .action-button .action-label{grid-column:2;grid-row:1;justify-self:center;white-space:nowrap;text-align:center}
+/* Кнопки v1.4: значок и текст центрируются вместе, с прежним интервалом. */
+.footer-buttons .action-button{display:flex;align-items:center;justify-content:center;gap:9px;padding:12px 10px}
+.footer-buttons .action-button svg{width:20px;height:20px;flex:none}
+.footer-buttons .action-button .action-label{white-space:nowrap}
 .swipe-delete{background:#e5222e;overflow:hidden}
-.swipe-delete img{display:block;width:27px;height:30px;object-fit:contain;pointer-events:none}
+.swipe-delete img{display:block;width:23px;height:25.5px;object-fit:contain;pointer-events:none}
 .viewer-body audio{display:block;width:100%;max-width:500px;min-height:54px}
+
+/* v1.6: постоянный поиск и белая мусорка только в заголовке категории. */
+.search-wrap{display:block;padding:3px 0 12px}
+.category-trash-icon{display:block;width:20px;height:23px;object-fit:contain;pointer-events:none}
+#clearCategoryButton{display:grid;place-items:center;min-width:40px;height:40px}
+#clearCategoryButton:active{opacity:.7}
+.item-menu-heading{min-width:0;flex:1}
+.item-menu-heading h3{margin:0}
+.item-menu-size{margin:6px 0 0;color:#a6a6a9;font-size:13px;line-height:1.25;font-weight:400}
+.entry-options{opacity:1;transition:opacity .20s ease}
+.entry.swipe-open .entry-options{pointer-events:none}
+/* Safari: не рисовать дополнительную лупу внутри поля поиска. */
+#searchInput{-webkit-appearance:none;appearance:none}
+#searchInput::-webkit-search-decoration,#searchInput::-webkit-search-results-button,#searchInput::-webkit-search-results-decoration{display:none}

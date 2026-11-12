@@ -13,8 +13,8 @@
   <link rel="manifest" href="./manifest.webmanifest?v=5">
   <link rel="apple-touch-icon" href="./icon-180.png?v=5">
   <link rel="icon" href="./icon-192.png?v=5" type="image/png">
-  <link rel="stylesheet" href="./style.css?v=7">
-  <script src="./app.js?v=7" defer></script>
+  <link rel="stylesheet" href="./style.css?v=8">
+  <script src="./app.js?v=8" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -56,14 +56,11 @@
         </div>
         <div class="heading-actions">
           <button type="button" id="clearCategoryButton" class="icon-button hidden" aria-label="Удалить все записи этой категории" title="Очистить категорию">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6m4-6v6"/></svg>
-          </button>
-          <button type="button" id="searchToggle" class="icon-button" aria-label="Поиск" title="Поиск">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.75" cy="10.75" r="6.75"/><path d="m15.7 15.7 5 5"/></svg>
+            <img class="category-trash-icon" src="./trash-swipe.png" alt="" aria-hidden="true">
           </button>
         </div>
       </div>
-      <div class="search-wrap hidden" id="searchWrap">
+      <div class="search-wrap" id="searchWrap">
         <input id="searchInput" type="search" placeholder="Поиск по записям" autocomplete="off" aria-label="Поиск по сохранённому">
       </div>
       <div id="entries" class="entries" aria-live="polite"><p class="empty">Загружаем записи…</p></div>
@@ -103,8 +100,7 @@
   </form></dialog>
 
   <dialog id="itemMenu" class="sheet"><div class="dialog-inner">
-    <div class="dialog-header"><h3 id="itemMenuTitle">Запись</h3><button class="close-button" type="button" data-close="itemMenu" aria-label="Закрыть"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M18 6 6 18"/></svg></button></div>
-    <button id="menuOpen" class="sheet-option" type="button">Открыть</button>
+    <div class="dialog-header"><div class="item-menu-heading"><h3 id="itemMenuTitle">Запись</h3><p id="itemMenuSize" class="item-menu-size hidden"></p></div><button class="close-button" type="button" data-close="itemMenu" aria-label="Закрыть"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M18 6 6 18"/></svg></button></div>
     <button id="menuRename" class="sheet-option" type="button">Переименовать</button>
     <button id="menuCopy" class="sheet-option hidden" type="button">Копировать содержимое</button>
     <button id="menuShare" class="sheet-option" type="button">Поделиться</button>

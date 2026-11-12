@@ -152,9 +152,10 @@ function render() {
   const limit=mode==='home'&&!term?4:Infinity;
   const visible=list.slice(0,limit);
   $('listTitle').textContent=mode==='home'?(term?'Результаты поиска':'Последние добавления'):mode==='all'?'Все добавления':mode==='file'?'Другие файлы':({link:'Ссылки',image:'Фото',video:'Видео',text:'Текст'})[mode];
-  $('searchInput').placeholder=({link:'Поиск по ссылкам',image:'Поиск по фото',video:'Поиск по видео'})[mode] || 'Поиск по записям';
+  $('searchInput').placeholder=({link:'Поиск по ссылкам',image:'Поиск по фото',video:'Поиск по видео',home:'Поиск по помойке',all:'Поиск по помойке'})[mode] || 'Поиск по записям';
+  $('searchInput').setAttribute('aria-label',$('searchInput').placeholder);
   $('backButton').classList.toggle('hidden',mode==='home');
-  $('clearCategoryButton').classList.toggle('hidden',!inCategory||!state.entries.some(r=>r.type===mode));
+  $('clearCategoryButton').classList.toggle('hidden',!inCategory);
   $('moreButton').classList.toggle('hidden',!(mode==='home'&&!term&&list.length>4));
   $('moreButton').textContent=`Ещё (${list.length-4})`;
   const extra=state.entries.filter(e=>e.type==='file').length;
@@ -205,6 +206,8 @@ function closeSwipeRow(row,animate=true){
   if(!slide)return;
   slide.style.transition=animate?'transform .20s ease':'none';
   slide.style.transform='translate3d(0,0,0)';
+  const options=row.querySelector('.entry-options');
+  if(options){options.style.transition=animate?'opacity .20s ease':'none';options.style.opacity='1';}
   row.classList.remove('swipe-open');
   if(openSwipeRow===row)openSwipeRow=null;
 }
@@ -213,6 +216,8 @@ function revealSwipeRow(row){
   const slide=row.querySelector('.entry-slide');
   slide.style.transition='transform .20s ease';
   slide.style.transform=`translate3d(-${SWIPE_ACTION_WIDTH}px,0,0)`;
+  const options=row.querySelector('.entry-options');
+  if(options){options.style.transition='opacity .20s ease';options.style.opacity='0';}
   row.classList.add('swipe-open');
   openSwipeRow=row;
 }
@@ -266,6 +271,8 @@ function bindEntrySwipe(row,slide,id){
     slide.style.transition='none';
     const position=Math.max(-SWIPE_ACTION_WIDTH,Math.min(0,gesture.base+dx));
     slide.style.transform=`translate3d(${position}px,0,0)`;
+    const options=row.querySelector('.entry-options');
+    if(options){options.style.transition='none';options.style.opacity=String(1-Math.min(1,Math.abs(position)/SWIPE_ACTION_WIDTH));}
   },{passive:false});
   row.addEventListener('touchend',event=>{
     if(!gesture)return;
@@ -291,7 +298,7 @@ function bindEntrySwipe(row,slide,id){
 
 function setMode(mode) {
   state.mode=mode;
-  if(mode==='home'){$('searchInput').value='';$('searchWrap').classList.add('hidden');}
+  $('searchInput').value='';
   render();
 }
 function detectTextType(value) {
@@ -390,6 +397,10 @@ function openItemMenu(id) {
   const entry=state.entries.find(r=>r.id===id);if(!entry)return;
   state.currentId=id;
   $('itemMenuTitle').textContent=recordName(entry);
+  const sizeLabel=$('itemMenuSize');
+  const hasAttachment=Number(entry.size)>0;
+  sizeLabel.textContent=hasAttachment?formatBytes(Number(entry.size)):'';
+  sizeLabel.classList.toggle('hidden',!hasAttachment);
   $('menuCopy').classList.toggle('hidden',!(entry.type==='link'||(entry.type==='text'&&Boolean(recordText(entry)))));
   const serial=++menuShareSerial;
   const button=$('menuShare');
@@ -427,22 +438,19 @@ async function openViewer(id) {
   releaseViewer();
   $('viewerTitle').textContent=recordName(record);
   const body=$('viewerBody'),buttons=$('viewerActions');body.replaceChildren();buttons.replaceChildren();
+  let sharePayload=null;
   if(record.type==='link'){
     const anchor=document.createElement('a');anchor.textContent=recordText(record);anchor.href=recordText(record);anchor.rel='noopener noreferrer';anchor.target='_blank';body.append(anchor);
-    buttons.append(viewerButton('Копировать ссылку',()=>copyValue(recordText(record))));
-    const payload=shareablePayload(record,null);
-    buttons.append(viewerButton('Поделиться',()=>shareFromTap(payload)));
+    sharePayload=shareablePayload(record,null);
   }else if(record.type==='text'&&recordText(record)){
     const content=document.createElement('div');content.className='text-preview';content.textContent=recordText(record);body.append(content);
-    buttons.append(viewerButton('Копировать текст',()=>copyValue(recordText(record))));
-    const payload=shareablePayload(record,null);
-    buttons.append(viewerButton('Поделиться',()=>shareFromTap(payload)));
+    sharePayload=shareablePayload(record,null);
   }else{
     try{
       const file=await readBlob(id);
       if(!file){showToast('Не удалось открыть вложение.');return;}
       const mime=inferFileMime(record);
-      // Для старого mp3 без MIME Safari нужна подсказка audio/mpeg.
+      // Для старых MP3 без MIME Safari нужна подсказка audio/mpeg.
       const displayBlob=(recordIsAudio(record) && !file.type)?new Blob([file],{type:mime}):file;
       viewerUrl=URL.createObjectURL(displayBlob);
       if(record.type==='image'){
@@ -454,19 +462,22 @@ async function openViewer(id) {
       }else if(record.type==='text'&&file.size<2*1024*1024){
         const content=document.createElement('div');content.className='text-preview';content.textContent=await file.text();body.append(content);
       }else{
-        const description=document.createElement('div');description.className='file-description';description.textContent=`${record.originalName||'Файл'} · ${formatBytes(file.size)}`;body.append(description);
+        const description=document.createElement('div');description.className='file-description';description.textContent=record.originalName||'Файл';body.append(description);
       }
-      const sharePayload=shareablePayload(record,file);
-      // Safari PWA не может писать в Фото/Файлы напрямую: вызываем нативную iOS Share Sheet.
-      const saveLabel=record.type==='image'||record.type==='video'?'Сохранить в Фото':'Сохранить в Файлы';
-      buttons.append(viewerButton(saveLabel,()=>shareFromTap(sharePayload)));
-      buttons.append(viewerButton('Поделиться',()=>shareFromTap(sharePayload)));
+      sharePayload=shareablePayload(record,file);
     }catch(error){console.error(error);showToast('Не удалось прочитать файл.');return;}
   }
+  // В просмотре строго две кнопки и в указанном порядке. Другие действия доступны в меню «⋯».
   buttons.append(viewerButton('Переименовать',()=>{closeDialog('viewer');startRename(id)}));
+  buttons.append(viewerButton('Поделиться',()=>shareFromTap(sharePayload)));
   showDialog('viewer');
 }
-function formatBytes(n){return n>=1048576?(n/1048576).toFixed(1)+' МБ':Math.max(1,Math.round(n/1024))+' КБ';}
+function formatBytes(n){
+  if(n<1024)return `${n} Б`;
+  if(n<1048576)return `${(n/1024).toFixed(n<10240?1:0)} КБ`;
+  if(n<1073741824)return `${(n/1048576).toFixed(1)} МБ`;
+  return `${(n/1073741824).toFixed(2)} ГБ`;
+}
 async function copyValue(value){
   if(!navigator.clipboard?.writeText){showToast('Копирование недоступно в этом браузере.');return;}
   try{await navigator.clipboard.writeText(value);showToast('Скопировано');}catch{showToast('Не удалось скопировать');}
@@ -478,7 +489,7 @@ async function deleteOne(id){
 }
 async function deleteCategory(){
   const type=state.mode,records=state.entries.filter(r=>r.type===type);
-  if(!records.length)return;
+  if(!records.length){showToast('Категория пуста');return;}
   const label=type==='file'?'«Другие файлы»':`«${({link:'Ссылки',image:'Фото',video:'Видео',text:'Текст'})[type]}»`;
   if(!confirm(`Удалить все записи из категории ${label} (${records.length})? Отменить это нельзя.`))return;
   try{await deleteRecords(records.map(r=>r.id));await refresh();showToast('Категория очищена');}catch{showToast('Ошибка удаления');}
@@ -536,10 +547,6 @@ function bindEvents(){
   $('otherFilesButton').addEventListener('click',()=>setMode('file'));
   $('backButton').addEventListener('click',()=>setMode('home'));
   $('moreButton').addEventListener('click',()=>setMode('all'));
-  $('searchToggle').addEventListener('click',()=>{
-    const open=$('searchWrap').classList.toggle('hidden')===false;
-    if(open)$('searchInput').focus();else{$('searchInput').value='';render();}
-  });
   $('searchInput').addEventListener('input',render);
   $('clearCategoryButton').addEventListener('click',deleteCategory);
   $('appMenuButton').addEventListener('click',()=>showDialog('appMenu'));
@@ -551,7 +558,6 @@ function bindEvents(){
     event.preventDefault();const title=$('renameInput').value.trim();if(!title)return;
     try{await renameRecord(state.renameId,title);closeDialog('renameDialog');await refresh();showToast('Название изменено');}catch{showToast('Ошибка переименования');}
   });
-  $('menuOpen').addEventListener('click',()=>{const id=state.currentId;closeDialog('itemMenu');openViewer(id)});
   $('menuRename').addEventListener('click',()=>{const id=state.currentId;closeDialog('itemMenu');startRename(id)});
   $('menuDelete').addEventListener('click',()=>{const id=state.currentId;closeDialog('itemMenu');deleteOne(id)});
   $('menuShare').addEventListener('click',()=>{const payload=menuSharePayload;closeDialog('itemMenu');shareFromTap(payload);});
