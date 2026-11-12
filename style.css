@@ -65,3 +65,12 @@
 .close-button svg{display:block;width:17px;height:17px;stroke-width:2.1;flex:none}
 .toast{bottom:calc(env(safe-area-inset-bottom) + 162px)}
 @media(min-width:650px){.bottom-actions{padding-left:30px;padding-right:30px}}
+
+
+/* v1.4 — безопасный горизонтальный свайп записей. */
+.entry{overflow:hidden;position:relative;touch-action:pan-y}
+.entry-slide{display:flex;align-items:center;width:100%;min-width:0;position:relative;z-index:1;background:#242424;transform:translate3d(0,0,0);will-change:transform}
+.entry-slide .entry-main{min-width:0;flex:1 1 auto}
+.swipe-delete{position:absolute;right:1px;top:50%;transform:translateY(-50%);width:58px;height:58px;border:0;border-radius:14px;background:#d9373e;color:white;display:grid;place-items:center;padding:0;z-index:0}
+.swipe-delete svg{width:25px;height:25px;stroke-width:1.9}
+.swipe-delete:active{background:#b92430}

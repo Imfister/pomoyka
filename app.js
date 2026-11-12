@@ -20,6 +20,7 @@ let thumbUrls = [];
 let viewerUrl = null;
 let toastTimeout;
 let renderCounter = 0;
+let openSwipeRow=null;
 
 function newId() {
   return typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Date.now()+'-'+Math.random().toString(36).slice(2);
@@ -138,6 +139,7 @@ async function refresh() {
   render();
 }
 function render() {
+  openSwipeRow=null;
   releaseThumbs();
   const serial=++renderCounter;
   const term=$('searchInput').value.trim().toLocaleLowerCase('ru-RU');
@@ -148,6 +150,7 @@ function render() {
   const limit=mode==='home'&&!term?4:Infinity;
   const visible=list.slice(0,limit);
   $('listTitle').textContent=mode==='home'?(term?'Результаты поиска':'Последние добавления'):mode==='all'?'Все добавления':mode==='file'?'Другие файлы':({link:'Ссылки',image:'Фото',video:'Видео',text:'Текст'})[mode];
+  $('searchInput').placeholder=({link:'Поиск по ссылкам',image:'Поиск по фото',video:'Поиск по видео'})[mode] || 'Поиск по записям';
   $('backButton').classList.toggle('hidden',mode==='home');
   $('clearCategoryButton').classList.toggle('hidden',!inCategory||!state.entries.some(r=>r.type===mode));
   $('moreButton').classList.toggle('hidden',!(mode==='home'&&!term&&list.length>4));
@@ -158,11 +161,19 @@ function render() {
   document.querySelectorAll('.category').forEach(btn=>btn.classList.toggle('active',btn.dataset.category===mode));
 
   const container=$('entries');container.replaceChildren();
-  if(!visible.length){const p=document.createElement('p');p.className='empty';if(term||inCategory){p.textContent=term?'Ничего не найдено.':'Здесь пока пусто.';}else{p.append(document.createTextNode('Здесь пока ничего нет.'),document.createElement('br'),document.createTextNode('Нажми «Прикрепить» или «Из буфера», либо введи текст ниже.'));}container.append(p);return;}
+  if(!visible.length){const p=document.createElement('p');p.className='empty';if(term||inCategory){p.textContent=term?'Ничего не найдено.':'Здесь пока пусто.';}else{p.append(document.createTextNode('Помойка пустая.'),document.createElement('br'),document.createTextNode('Добавьте что-нибудь.'));}container.append(p);return;}
   for(const entry of visible){
     const row=document.createElement('article');row.className='entry';
+    const slide=document.createElement('div');slide.className='entry-slide';
+    const swipeDelete=document.createElement('button');swipeDelete.type='button';swipeDelete.className='swipe-delete';
+    swipeDelete.setAttribute('aria-label','Удалить: '+recordName(entry));swipeDelete.title='Удалить запись';
+    swipeDelete.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6m4-6v6"/></svg>';
+    swipeDelete.addEventListener('click',()=>deleteSwipedEntry(entry.id,row));
     const main=document.createElement('button');main.type='button';main.className='entry-main';main.setAttribute('aria-label','Открыть: '+recordName(entry));
-    main.addEventListener('click',()=>openViewer(entry.id));
+    main.addEventListener('click',()=>{
+      if(row.classList.contains('swipe-open')){closeSwipeRow(row);return;}
+      openViewer(entry.id);
+    });
     const thumb=document.createElement('div');thumb.className='entry-thumb';
     if(entry.type==='image'&&entry.thumbnail instanceof Blob){
       const img=document.createElement('img');const url=URL.createObjectURL(entry.thumbnail);thumbUrls.push(url);img.src=url;img.alt='';thumb.append(img);
@@ -178,9 +189,109 @@ function render() {
     const meta=document.createElement('div');meta.className='entry-meta';meta.textContent=`${LABELS[entry.type]||'Файл'} · ${timeLabel(entry.created)}`;
     info.append(name,meta);main.append(thumb,info);
     const options=document.createElement('button');options.type='button';options.className='entry-options';options.textContent='⋯';options.setAttribute('aria-label','Действия с записью: '+recordName(entry));options.addEventListener('click',()=>openItemMenu(entry.id));
-    row.append(main,options);container.append(row);
+    slide.append(main,options);
+    row.append(swipeDelete,slide);
+    bindEntrySwipe(row,slide,entry.id);
+    container.append(row);
   }
 }
+// iPhone: свайп влево показывает мусорку, до левого края — удаляет.
+const SWIPE_ACTION_WIDTH=62;
+function closeSwipeRow(row,animate=true){
+  if(!row)return;
+  const slide=row.querySelector('.entry-slide');
+  if(!slide)return;
+  slide.style.transition=animate?'transform .20s ease':'none';
+  slide.style.transform='translate3d(0,0,0)';
+  row.classList.remove('swipe-open');
+  if(openSwipeRow===row)openSwipeRow=null;
+}
+function revealSwipeRow(row){
+  if(openSwipeRow && openSwipeRow!==row)closeSwipeRow(openSwipeRow);
+  const slide=row.querySelector('.entry-slide');
+  slide.style.transition='transform .20s ease';
+  slide.style.transform=`translate3d(-${SWIPE_ACTION_WIDTH}px,0,0)`;
+  row.classList.add('swipe-open');
+  openSwipeRow=row;
+}
+async function deleteSwipedEntry(id,row){
+  if(row.dataset.deleting==='1')return;
+  if(!state.entries.some(entry=>entry.id===id))return;
+  row.dataset.deleting='1';
+  const slide=row.querySelector('.entry-slide');
+  slide.style.transition='transform .18s ease-out';
+  slide.style.transform=`translate3d(-${row.getBoundingClientRect().width}px,0,0)`;
+  try{
+    await deleteRecords([id]);
+    await new Promise(resolve=>setTimeout(resolve,180));
+    await refresh();
+    showToast('Запись удалена');
+  }catch(error){
+    row.dataset.deleting='0';
+    closeSwipeRow(row);
+    showToast('Не удалось удалить запись');
+  }
+}
+function bindEntrySwipe(row,slide,id){
+  let gesture=null;
+  let suppressClickUntil=0;
+  row.addEventListener('click',event=>{
+    // iOS может послать click вслед за свайпом: не открываем запись случайно.
+    if(Date.now()<suppressClickUntil && event.target.closest('.entry-slide')){
+      event.preventDefault();event.stopImmediatePropagation();
+    }
+  },true);
+  row.addEventListener('touchstart',event=>{
+    if(event.touches.length!==1 || event.target.closest('.swipe-delete'))return;
+    const finger=event.touches[0];
+    if(openSwipeRow && openSwipeRow!==row)closeSwipeRow(openSwipeRow);
+    gesture={x:finger.clientX,y:finger.clientY,lastX:finger.clientX,
+      axis:null,startOpen:row.classList.contains('swipe-open'),
+      base:row.classList.contains('swipe-open')?-SWIPE_ACTION_WIDTH:0};
+  },{passive:true});
+  row.addEventListener('touchmove',event=>{
+    if(!gesture || event.touches.length!==1 || row.dataset.deleting==='1')return;
+    const finger=event.touches[0];
+    const dx=finger.clientX-gesture.x,dy=finger.clientY-gesture.y;
+    gesture.lastX=finger.clientX;
+    if(!gesture.axis){
+      if(Math.abs(dx)<9 && Math.abs(dy)<9)return;
+      gesture.axis=Math.abs(dx)>Math.abs(dy)*1.2?'horizontal':'vertical';
+    }
+    if(gesture.axis!=='horizontal')return;
+    event.preventDefault();
+    suppressClickUntil=Date.now()+450;
+    slide.style.transition='none';
+    const position=Math.max(-row.clientWidth,Math.min(0,gesture.base+dx));
+    slide.style.transform=`translate3d(${position}px,0,0)`;
+  },{passive:false});
+  row.addEventListener('touchend',event=>{
+    if(!gesture)return;
+    const g=gesture;gesture=null;
+    if(g.axis!=='horizontal')return;
+    const finishX=event.changedTouches[0]?.clientX ?? g.lastX;
+    const dx=finishX-g.x;
+    const nearLeftEdge=finishX<=Math.max(36,window.innerWidth*.10);
+    const fullDistance=dx<=-row.clientWidth*.78;
+    const reachedEdge=nearLeftEdge && dx<=-Math.min(105,row.clientWidth*.30);
+    if(fullDistance||reachedEdge){
+      deleteSwipedEntry(id,row);
+    }else if(dx>20){
+      closeSwipeRow(row);
+    }else if(dx<-35 || (g.startOpen && dx>-25)){
+      revealSwipeRow(row);
+    }else{
+      closeSwipeRow(row);
+    }
+  },{passive:true});
+  row.addEventListener('touchcancel',()=>{
+    if(!gesture)return;
+    gesture=null;
+    if(row.classList.contains('swipe-open'))revealSwipeRow(row);
+    else closeSwipeRow(row);
+  },{passive:true});
+}
+
 function setMode(mode) {
   state.mode=mode;
   if(mode==='home'){$('searchInput').value='';$('searchWrap').classList.add('hidden');}
