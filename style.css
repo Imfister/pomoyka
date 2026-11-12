@@ -11,3 +11,32 @@
 .toast{z-index:999;position:fixed;bottom:calc(env(safe-area-inset-bottom) + 93px);left:50%;transform:translate(-50%,8px);width:max-content;max-width:calc(100vw - 42px);background:#f4f4f4;color:#171717;border-radius:12px;padding:11px 16px;font-size:13px;box-shadow:0 10px 25px #0005;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;text-align:center}.toast.show{opacity:1;transform:translate(-50%,0)}
 @media(min-width:650px){.app-shell{padding-left:30px;padding-right:30px}.list-card{padding:27px 26px 14px}.categories{gap:18px}.category{max-width:none}.category svg{width:35px;height:35px}.entry-thumb{height:64px;width:64px;flex-basis:64px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* Версия 1.1: немного компактнее, без изменения логики. */
+.app-shell{padding-top:calc(env(safe-area-inset-top) + 14px);padding-bottom:calc(env(safe-area-inset-bottom) + 95px)}
+.topbar{margin-bottom:20px}
+.brand{gap:10px}
+.brand-icon{width:26px;height:26px}
+.brand h1{font-size:clamp(26px,7vw,31px)}
+.top-menu-button{height:42px;width:42px;min-width:42px;padding:9px;display:grid;place-items:center;border-radius:50%}
+.top-menu-button svg{width:23px;height:23px;stroke-width:1.7}
+.categories{gap:10px;margin-bottom:22px}
+.category{border-radius:20px;gap:11px;padding:8px 3px}
+.category svg{height:27px;width:27px;stroke-width:1.9}
+.category span{font-size:clamp(12px,3.25vw,15px)}
+.list-card{border-radius:23px;padding:15px 15px 11px}
+.list-heading{padding:3px 0 9px}
+.list-heading h2{font-size:clamp(20px,5.5vw,25px)}
+.icon-button{min-width:34px;height:36px}
+.icon-button svg{width:24px;height:24px}
+.entry{min-height:76px}
+.entry-main{padding:11px 0;gap:11px}
+.entry-thumb{height:50px;width:50px;flex-basis:50px;border-radius:12px}
+.entry-thumb svg{width:23px;height:23px}
+.entry-name{font-size:17px}
+.entry-meta{margin-top:5px;font-size:12px}
+.more-button{padding-top:12px;padding-bottom:8px}
+.bottom-actions{gap:10px;padding-top:10px}
+.action-button{min-height:50px;border-radius:15px;font-size:15px}
+.file-input-accessible{position:absolute;width:1px;height:1px;opacity:0;clip-path:inset(50%);overflow:hidden;pointer-events:none}
+@media(min-width:650px){.categories{gap:14px}.category{border-radius:23px}.category svg{width:30px;height:30px}.category span{font-size:15px}.list-card{padding:21px 21px 11px}}

@@ -13,8 +13,8 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" href="./icon-180.png">
   <link rel="icon" href="./icon-192.png" type="image/png">
-  <link rel="stylesheet" href="./style.css">
-  <script src="./app.js" defer></script>
+  <link rel="stylesheet" href="./style.css?v=3">
+  <script src="./app.js?v=3" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -23,7 +23,7 @@
         <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.25" width="17" height="4" rx="1.4"/><rect x="5.25" y="8.8" width="13.5" height="11.25" rx="1.7"/><path d="M9 13.1h6"/></svg>
         <h1>Помойка</h1>
       </div>
-      <button id="appMenuButton" type="button" class="top-menu-button" aria-label="Действия с помойкой" title="Действия">Концепция</button>
+      <button id="appMenuButton" type="button" class="top-menu-button" aria-label="Настройки" title="Настройки"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.5 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82A1.65 1.65 0 0 0 3.17 14H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.5-1.08 1.65 1.65 0 0 0-.33-1.82L4.2 7.04a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33A1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1.08 1.5 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82A1.65 1.65 0 0 0 20.91 10H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z"/></svg></button>
     </header>
 
     <nav class="categories" aria-label="Категории">
@@ -82,15 +82,8 @@
     </footer>
   </div>
 
-  <input id="photosInput" class="hidden" type="file" accept="image/*,video/*" multiple>
-  <input id="filesInput" class="hidden" type="file" multiple>
-
-  <dialog id="attachDialog" class="sheet"><div class="dialog-inner">
-    <div class="dialog-header"><h3>Прикрепить</h3><button class="close-button" type="button" data-close="attachDialog" aria-label="Закрыть">×</button></div>
-    <button type="button" id="choosePhotos" class="sheet-option"><span class="sheet-emoji">▧</span><span>Фото или видео<span class="option-note">Из медиатеки iPhone</span></span></button>
-    <button type="button" id="chooseFiles" class="sheet-option"><span class="sheet-emoji">▤</span><span>Файл<span class="option-note">Из приложения «Файлы»</span></span></button>
-    <button type="button" id="chooseText" class="sheet-option"><span class="sheet-emoji">✎</span><span>Текст или ссылка<span class="option-note">Ввести вручную</span></span></button>
-  </div></dialog>
+  <!-- Системный выбор iOS: Медиатека / Снять фото или видео / Файлы. -->
+  <input id="filesInput" class="file-input-accessible" type="file" multiple aria-label="Выбрать файлы для Помойки">
 
   <dialog id="textDialog" class="sheet"><form id="textForm" class="dialog-inner">
     <div class="dialog-header"><h3>Добавить запись</h3><button class="close-button" type="button" data-close="textDialog" aria-label="Закрыть">×</button></div>
@@ -119,6 +112,7 @@
   <dialog id="appMenu" class="sheet"><div class="dialog-inner">
     <div class="dialog-header"><h3>Помойка</h3><button class="close-button" type="button" data-close="appMenu" aria-label="Закрыть">×</button></div>
     <p class="privacy-note">Записи хранятся только на этом устройстве. Они не загружаются в GitHub или облако.</p>
+    <button id="appAddText" class="sheet-option" type="button">Добавить текст или ссылку вручную</button>
     <button id="appDeleteAll" class="sheet-option danger" type="button">Удалить вообще всё</button>
   </div></dialog>
 

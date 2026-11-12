@@ -158,7 +158,7 @@ function render() {
   document.querySelectorAll('.category').forEach(btn=>btn.classList.toggle('active',btn.dataset.category===mode));
 
   const container=$('entries');container.replaceChildren();
-  if(!visible.length){const p=document.createElement('p');p.className='empty';p.textContent=term?'Ничего не найдено.':inCategory?'Здесь пока пусто.':'Здесь пока ничего нет. Нажми «Прикрепить» или «Из буфера».';container.append(p);return;}
+  if(!visible.length){const p=document.createElement('p');p.className='empty';if(term||inCategory){p.textContent=term?'Ничего не найдено.':'Здесь пока пусто.';}else{p.append(document.createTextNode('Здесь пока ничего нет.'),document.createElement('br'),document.createTextNode('Нажми «Прикрепить» или «Из буфера».'));}container.append(p);return;}
   for(const entry of visible){
     const row=document.createElement('article');row.className='entry';
     const main=document.createElement('button');main.type='button';main.className='entry-main';main.setAttribute('aria-label','Открыть: '+recordName(entry));
@@ -353,11 +353,10 @@ function bindEvents(){
   $('clearCategoryButton').addEventListener('click',deleteCategory);
   $('appMenuButton').addEventListener('click',()=>showDialog('appMenu'));
   $('appDeleteAll').addEventListener('click',deleteEverything);
-  $('attachButton').addEventListener('click',()=>showDialog('attachDialog'));
-  $('choosePhotos').addEventListener('click',()=>{closeDialog('attachDialog');$('photosInput').click();});
-  $('chooseFiles').addEventListener('click',()=>{closeDialog('attachDialog');$('filesInput').click();});
-  $('chooseText').addEventListener('click',()=>{closeDialog('attachDialog');$('textForm').reset();showDialog('textDialog');});
-  $('photosInput').addEventListener('change',async e=>{const files=Array.from(e.target.files);e.target.value='';await saveFiles(files)});
+  // Запускаем системный file picker непосредственно из нажатия — без промежуточного окна.
+  $('attachButton').addEventListener('click',()=>$('filesInput').click());
+  // Ручной ввод текста сохранили в настройках, чтобы функция не пропала.
+  $('appAddText').addEventListener('click',()=>{closeDialog('appMenu');$('textForm').reset();showDialog('textDialog');});
   $('filesInput').addEventListener('change',async e=>{const files=Array.from(e.target.files);e.target.value='';await saveFiles(files)});
   $('textForm').addEventListener('submit',async event=>{
     event.preventDefault();const value=$('newText').value,title=$('newTitle').value;
@@ -379,6 +378,12 @@ function bindEvents(){
     event.preventDefault();try{if(await saveText($('pasteText').value))closeDialog('pasteDialog');}catch(error){showToast(getErrorMessage(error));}
   });
   document.querySelectorAll('[data-close]').forEach(button=>button.addEventListener('click',()=>closeDialog(button.dataset.close)));
+  // Закрываем модальные окна нажатием именно за пределами их прямоугольника.
+  document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{
+    if(event.target!==dialog)return;
+    const rect=dialog.getBoundingClientRect();
+    if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)closeDialog(dialog.id);
+  }));
   $('viewer').addEventListener('close',()=>{const video=$('viewerBody').querySelector('video');if(video)video.pause();releaseViewer();$('viewerBody').replaceChildren();$('viewerActions').replaceChildren();});
   window.addEventListener('pagehide',()=>{releaseThumbs();releaseViewer();});
 }
