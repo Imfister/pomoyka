@@ -13,8 +13,8 @@
   <link rel="manifest" href="./manifest.webmanifest?v=5">
   <link rel="apple-touch-icon" href="./icon-180.png?v=5">
   <link rel="icon" href="./icon-192.png?v=5" type="image/png">
-  <link rel="stylesheet" href="./style.css?v=6">
-  <script src="./app.js?v=6" defer></script>
+  <link rel="stylesheet" href="./style.css?v=7">
+  <script src="./app.js?v=7" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -81,11 +81,11 @@
       <div class="footer-buttons">
         <button id="attachButton" class="action-button action-secondary" type="button">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12.5 14.6 6a3.25 3.25 0 1 1 4.6 4.6l-9 9a5.3 5.3 0 0 1-7.5-7.5l9-9"/></svg>
-          Прикрепить
+          <span class="action-label">Прикрепить</span>
         </button>
         <button id="clipboardButton" class="action-button action-secondary" type="button">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5.5" y="5" width="13" height="16" rx="2"/><path d="M9 5V3h6v2M9 11h6m-6 4h6"/></svg>
-          Из буфера
+          <span class="action-label">Из буфера</span>
         </button>
       </div>
     </footer>
@@ -107,6 +107,7 @@
     <button id="menuOpen" class="sheet-option" type="button">Открыть</button>
     <button id="menuRename" class="sheet-option" type="button">Переименовать</button>
     <button id="menuCopy" class="sheet-option hidden" type="button">Копировать содержимое</button>
+    <button id="menuShare" class="sheet-option" type="button">Поделиться</button>
     <button id="menuDelete" class="sheet-option danger" type="button">Удалить запись</button>
   </div></dialog>
 

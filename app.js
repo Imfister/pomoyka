@@ -21,6 +21,8 @@ let viewerUrl = null;
 let toastTimeout;
 let renderCounter = 0;
 let openSwipeRow=null;
+let menuSharePayload=null;
+let menuShareSerial=0;
 
 function newId() {
   return typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Date.now()+'-'+Math.random().toString(36).slice(2);
@@ -167,7 +169,7 @@ function render() {
     const slide=document.createElement('div');slide.className='entry-slide';
     const swipeDelete=document.createElement('button');swipeDelete.type='button';swipeDelete.className='swipe-delete';
     swipeDelete.setAttribute('aria-label','Удалить: '+recordName(entry));swipeDelete.title='Удалить запись';
-    swipeDelete.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6m4-6v6"/></svg>';
+    swipeDelete.innerHTML='<img src="./trash-swipe.png" alt="" aria-hidden="true">';
     swipeDelete.addEventListener('click',()=>deleteSwipedEntry(entry.id,row));
     const main=document.createElement('button');main.type='button';main.className='entry-main';main.setAttribute('aria-label','Открыть: '+recordName(entry));
     main.addEventListener('click',()=>{
@@ -195,7 +197,7 @@ function render() {
     container.append(row);
   }
 }
-// iPhone: свайп влево показывает мусорку, до левого края — удаляет.
+// iPhone: свайп только открывает/закрывает мусорку; удаление — нажатием по ней.
 const SWIPE_ACTION_WIDTH=62;
 function closeSwipeRow(row,animate=true){
   if(!row)return;
@@ -262,23 +264,18 @@ function bindEntrySwipe(row,slide,id){
     event.preventDefault();
     suppressClickUntil=Date.now()+450;
     slide.style.transition='none';
-    const position=Math.max(-row.clientWidth,Math.min(0,gesture.base+dx));
+    const position=Math.max(-SWIPE_ACTION_WIDTH,Math.min(0,gesture.base+dx));
     slide.style.transform=`translate3d(${position}px,0,0)`;
   },{passive:false});
   row.addEventListener('touchend',event=>{
     if(!gesture)return;
     const g=gesture;gesture=null;
     if(g.axis!=='horizontal')return;
-    const finishX=event.changedTouches[0]?.clientX ?? g.lastX;
-    const dx=finishX-g.x;
-    const nearLeftEdge=finishX<=Math.max(36,window.innerWidth*.10);
-    const fullDistance=dx<=-row.clientWidth*.78;
-    const reachedEdge=nearLeftEdge && dx<=-Math.min(105,row.clientWidth*.30);
-    if(fullDistance||reachedEdge){
-      deleteSwipedEntry(id,row);
-    }else if(dx>20){
+    const dx=(event.changedTouches[0]?.clientX ?? g.lastX)-g.x;
+    // Даже свайп через всю ширину экрана ничего не удаляет сам по себе.
+    if(dx>20){
       closeSwipeRow(row);
-    }else if(dx<-35 || (g.startOpen && dx>-25)){
+    }else if(dx<-28 || (g.startOpen && dx<=20)){
       revealSwipeRow(row);
     }else{
       closeSwipeRow(row);
@@ -351,11 +348,71 @@ async function saveFiles(fileList) {
   if(saved<files.length&&!saved)showToast('Не получилось сохранить файлы.');
 }
 
+// Передача файлов наружу происходит ТОЛЬКО по нажатию пользователя через меню iOS.
+function inferFileMime(record) {
+  if (record.mime && record.mime !== 'application/octet-stream') return record.mime;
+  const extension=(record.originalName||'').split('.').pop().toLowerCase();
+  return ({mp3:'audio/mpeg',m4a:'audio/mp4',aac:'audio/aac',wav:'audio/wav',flac:'audio/flac',ogg:'audio/ogg',
+    mp4:'video/mp4',mov:'video/quicktime',m4v:'video/x-m4v',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',
+    heic:'image/heic',heif:'image/heif',webp:'image/webp',gif:'image/gif',pdf:'application/pdf'})[extension] || 'application/octet-stream';
+}
+function recordIsAudio(record) {
+  return Boolean(record && (inferFileMime(record).startsWith('audio/') || /\.(mp3|m4a|aac|wav|flac|ogg)$/i.test(record.originalName||'')));
+}
+function shareablePayload(record, blob) {
+  if (record.type==='link') return {url:recordText(record)};
+  if (record.type==='text' && recordText(record)) return {text:recordText(record)};
+  if (!(blob instanceof Blob)) return null;
+  const filename=record.originalName||'Сохранённый файл';
+  const file=new File([blob],filename,{type:inferFileMime(record),lastModified:Date.now()});
+  return {files:[file]};
+}
+function shareFromTap(payload) {
+  // Нельзя ждать IndexedDB перед navigator.share(): iOS может потерять жест пользователя.
+  if (!payload || typeof navigator.share!=='function'){
+    showToast('Системное меню «Поделиться» недоступно.');return;
+  }
+  try {
+    if (payload.files && typeof navigator.canShare==='function' && !navigator.canShare({files:payload.files})){
+      showToast('iOS не позволяет поделиться этим файлом.');return;
+    }
+    Promise.resolve(navigator.share(payload)).catch(error=>{
+      if(error?.name==='AbortError')return;
+      console.info('Не удалось открыть меню Share:',error?.name);
+      showToast('Не удалось открыть меню «Поделиться».');
+    });
+  }catch(error){
+    console.info('Ошибка Share:',error?.name);
+    showToast('Не удалось открыть меню «Поделиться».');
+  }
+}
 function openItemMenu(id) {
   const entry=state.entries.find(r=>r.id===id);if(!entry)return;
   state.currentId=id;
   $('itemMenuTitle').textContent=recordName(entry);
   $('menuCopy').classList.toggle('hidden',!(entry.type==='link'||(entry.type==='text'&&Boolean(recordText(entry)))));
+  const serial=++menuShareSerial;
+  const button=$('menuShare');
+  if(entry.type==='link'||(entry.type==='text'&&recordText(entry))){
+    menuSharePayload=shareablePayload(entry,null);
+    button.disabled=false;
+    button.textContent='Поделиться';
+  }else{
+    menuSharePayload=null;
+    button.disabled=true;
+    button.textContent='Поделиться (подготовка…)';
+    readBlob(id).then(blob=>{
+      if(serial!==menuShareSerial || state.currentId!==id)return;
+      menuSharePayload=shareablePayload(entry,blob);
+      button.disabled=!menuSharePayload;
+      button.textContent='Поделиться';
+      if(!menuSharePayload)showToast('Файл не найден в локальном хранилище.');
+    }).catch(()=>{
+      if(serial!==menuShareSerial)return;
+      button.disabled=true;
+      button.textContent='Поделиться недоступно';
+    });
+  }
   showDialog('itemMenu');
 }
 function startRename(id){
@@ -373,24 +430,37 @@ async function openViewer(id) {
   if(record.type==='link'){
     const anchor=document.createElement('a');anchor.textContent=recordText(record);anchor.href=recordText(record);anchor.rel='noopener noreferrer';anchor.target='_blank';body.append(anchor);
     buttons.append(viewerButton('Копировать ссылку',()=>copyValue(recordText(record))));
+    const payload=shareablePayload(record,null);
+    buttons.append(viewerButton('Поделиться',()=>shareFromTap(payload)));
   }else if(record.type==='text'&&recordText(record)){
     const content=document.createElement('div');content.className='text-preview';content.textContent=recordText(record);body.append(content);
     buttons.append(viewerButton('Копировать текст',()=>copyValue(recordText(record))));
+    const payload=shareablePayload(record,null);
+    buttons.append(viewerButton('Поделиться',()=>shareFromTap(payload)));
   }else{
     try{
       const file=await readBlob(id);
       if(!file){showToast('Не удалось открыть вложение.');return;}
-      viewerUrl=URL.createObjectURL(file);
+      const mime=inferFileMime(record);
+      // Для старого mp3 без MIME Safari нужна подсказка audio/mpeg.
+      const displayBlob=(recordIsAudio(record) && !file.type)?new Blob([file],{type:mime}):file;
+      viewerUrl=URL.createObjectURL(displayBlob);
       if(record.type==='image'){
         const img=document.createElement('img');img.src=viewerUrl;img.alt=recordName(record);body.append(img);
       }else if(record.type==='video'){
         const video=document.createElement('video');video.src=viewerUrl;video.controls=true;video.playsInline=true;video.preload='metadata';body.append(video);
+      }else if(recordIsAudio(record)){
+        const audio=document.createElement('audio');audio.src=viewerUrl;audio.controls=true;audio.preload='metadata';audio.setAttribute('aria-label','Аудиоплеер: '+recordName(record));body.append(audio);
       }else if(record.type==='text'&&file.size<2*1024*1024){
         const content=document.createElement('div');content.className='text-preview';content.textContent=await file.text();body.append(content);
       }else{
         const description=document.createElement('div');description.className='file-description';description.textContent=`${record.originalName||'Файл'} · ${formatBytes(file.size)}`;body.append(description);
       }
-      const download=document.createElement('a');download.href=viewerUrl;download.download=record.originalName||'Файл';download.textContent='Сохранить файл';buttons.append(download);
+      const sharePayload=shareablePayload(record,file);
+      // Safari PWA не может писать в Фото/Файлы напрямую: вызываем нативную iOS Share Sheet.
+      const saveLabel=record.type==='image'||record.type==='video'?'Сохранить в Фото':'Сохранить в Файлы';
+      buttons.append(viewerButton(saveLabel,()=>shareFromTap(sharePayload)));
+      buttons.append(viewerButton('Поделиться',()=>shareFromTap(sharePayload)));
     }catch(error){console.error(error);showToast('Не удалось прочитать файл.');return;}
   }
   buttons.append(viewerButton('Переименовать',()=>{closeDialog('viewer');startRename(id)}));
@@ -484,6 +554,7 @@ function bindEvents(){
   $('menuOpen').addEventListener('click',()=>{const id=state.currentId;closeDialog('itemMenu');openViewer(id)});
   $('menuRename').addEventListener('click',()=>{const id=state.currentId;closeDialog('itemMenu');startRename(id)});
   $('menuDelete').addEventListener('click',()=>{const id=state.currentId;closeDialog('itemMenu');deleteOne(id)});
+  $('menuShare').addEventListener('click',()=>{const payload=menuSharePayload;closeDialog('itemMenu');shareFromTap(payload);});
   $('menuCopy').addEventListener('click',()=>{
     const entry=state.entries.find(r=>r.id===state.currentId);
     if(entry){copyValue(recordText(entry));closeDialog('itemMenu');}
@@ -520,7 +591,7 @@ function bindEvents(){
   document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{
     if(event.target===dialog)closeDialog(dialog.id);
   }));
-  $('viewer').addEventListener('close',()=>{const video=$('viewerBody').querySelector('video');if(video)video.pause();releaseViewer();$('viewerBody').replaceChildren();$('viewerActions').replaceChildren();});
+  $('viewer').addEventListener('close',()=>{const player=$('viewerBody').querySelector('video,audio');if(player)player.pause();releaseViewer();$('viewerBody').replaceChildren();$('viewerActions').replaceChildren();});
   window.addEventListener('pagehide',()=>{releaseThumbs();releaseViewer();});
 }
 async function main(){

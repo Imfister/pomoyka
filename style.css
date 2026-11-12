@@ -74,3 +74,12 @@
 .swipe-delete{position:absolute;right:1px;top:50%;transform:translateY(-50%);width:58px;height:58px;border:0;border-radius:14px;background:#d9373e;color:white;display:grid;place-items:center;padding:0;z-index:0}
 .swipe-delete svg{width:25px;height:25px;stroke-width:1.9}
 .swipe-delete:active{background:#b92430}
+
+
+/* v1.5: центр текста в каждой нижней кнопке, иконка слева от надписи. */
+.footer-buttons .action-button{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);justify-items:center;align-items:center;column-gap:0;padding:10px 6px}
+.footer-buttons .action-button svg{position:static;grid-column:1;grid-row:1;justify-self:end;margin-right:7px;width:19px;height:19px;flex:none}
+.footer-buttons .action-button .action-label{grid-column:2;grid-row:1;justify-self:center;white-space:nowrap;text-align:center}
+.swipe-delete{background:#e5222e;overflow:hidden}
+.swipe-delete img{display:block;width:27px;height:30px;object-fit:contain;pointer-events:none}
+.viewer-body audio{display:block;width:100%;max-width:500px;min-height:54px}
