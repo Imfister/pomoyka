@@ -46,3 +46,22 @@
 .bottom-actions{display:grid;grid-template-columns:minmax(0,1fr) 54px minmax(0,1fr);gap:10px;align-items:center}
 .privacy-note br{content:""}
 .close-button,.icon-button,.entry-options{outline:none!important;box-shadow:none!important}
+
+
+/* v1.3: быстрый ввод и ровно две нижние кнопки. */
+.app-shell{padding-bottom:calc(env(safe-area-inset-bottom) + 174px)}
+.bottom-actions{display:flex;flex-direction:column;gap:9px;align-items:stretch;padding:12px 20px calc(env(safe-area-inset-bottom) + 12px)}
+.footer-buttons{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.quick-text-form{width:100%;display:flex;align-items:flex-end;gap:9px;background:#242424;border:1px solid #3c3c3d;border-radius:16px;padding:7px 8px 7px 14px}
+.quick-text-form textarea{width:100%;min-width:0;min-height:32px;max-height:116px;resize:none;overflow-y:auto;display:block;align-self:center;border:0;border-radius:0;background:transparent;color:#fff;outline:0;box-shadow:none;padding:6px 0 4px;font-size:16px;line-height:22px;-webkit-appearance:none;appearance:none}
+.quick-text-form textarea::placeholder{color:#8e8e92;opacity:1}
+.quick-text-save{display:grid;place-items:center;flex:0 0 35px;width:35px;height:35px;border:0;border-radius:50%;background:#f3f3f3;color:#111;padding:0;align-self:flex-end;transition:background-color .14s,color .14s}
+.quick-text-save svg{width:19px;height:19px;stroke-width:2.2}
+.quick-text-save:disabled{background:#424244;color:#858588;opacity:1}
+.visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.top-menu-button{display:flex;align-items:center;justify-content:center;padding:0!important;line-height:0}
+.top-menu-button svg{display:block;width:23px;height:23px;flex:none}
+.close-button{display:grid;place-items:center;padding:0!important;line-height:0;font-size:initial}
+.close-button svg{display:block;width:17px;height:17px;stroke-width:2.1;flex:none}
+.toast{bottom:calc(env(safe-area-inset-bottom) + 162px)}
+@media(min-width:650px){.bottom-actions{padding-left:30px;padding-right:30px}}

@@ -145,20 +145,20 @@ function render() {
   const inCategory=!['home','all'].includes(mode);
   let list=state.entries.filter(record=>(!inCategory||record.type===mode));
   if(term)list=list.filter(record=>[recordName(record),record.originalName,recordText(record)].some(value=>String(value||'').toLocaleLowerCase('ru-RU').includes(term)));
-  const limit=mode==='home'&&!term?5:Infinity;
+  const limit=mode==='home'&&!term?4:Infinity;
   const visible=list.slice(0,limit);
   $('listTitle').textContent=mode==='home'?(term?'Результаты поиска':'Последние добавления'):mode==='all'?'Все добавления':mode==='file'?'Другие файлы':({link:'Ссылки',image:'Фото',video:'Видео',text:'Текст'})[mode];
   $('backButton').classList.toggle('hidden',mode==='home');
   $('clearCategoryButton').classList.toggle('hidden',!inCategory||!state.entries.some(r=>r.type===mode));
-  $('moreButton').classList.toggle('hidden',!(mode==='home'&&!term&&list.length>5));
-  $('moreButton').textContent=`Ещё (${list.length-5})`;
+  $('moreButton').classList.toggle('hidden',!(mode==='home'&&!term&&list.length>4));
+  $('moreButton').textContent=`Ещё (${list.length-4})`;
   const extra=state.entries.filter(e=>e.type==='file').length;
   $('otherFilesButton').classList.toggle('hidden',extra===0);
   $('otherCount').textContent=extra;
   document.querySelectorAll('.category').forEach(btn=>btn.classList.toggle('active',btn.dataset.category===mode));
 
   const container=$('entries');container.replaceChildren();
-  if(!visible.length){const p=document.createElement('p');p.className='empty';if(term||inCategory){p.textContent=term?'Ничего не найдено.':'Здесь пока пусто.';}else{p.append(document.createTextNode('Здесь пока ничего нет.'),document.createElement('br'),document.createTextNode('Нажми «Прикрепить» или «Из буфера».'));}container.append(p);return;}
+  if(!visible.length){const p=document.createElement('p');p.className='empty';if(term||inCategory){p.textContent=term?'Ничего не найдено.':'Здесь пока пусто.';}else{p.append(document.createTextNode('Здесь пока ничего нет.'),document.createElement('br'),document.createTextNode('Нажми «Прикрепить» или «Из буфера», либо введи текст ниже.'));}container.append(p);return;}
   for(const entry of visible){
     const row=document.createElement('article');row.className='entry';
     const main=document.createElement('button');main.type='button';main.className='entry-main';main.setAttribute('aria-label','Открыть: '+recordName(entry));
@@ -308,35 +308,45 @@ async function deleteEverything(){
   if(!confirm(`Удалить вообще все записи (${state.entries.length})? Фото, видео, ссылки и текст исчезнут без возможности восстановления.`))return;
   try{await clearAllRecords();setMode('home');await refresh();showToast('Помойка очищена');}catch{showToast('Ошибка удаления');}
 }
-function manualPaste(){
-  $('pasteText').value='';showDialog('pasteDialog');
-}
 async function importClipboard(){
-  if(!navigator.clipboard){manualPaste();return;}
+  // Системный запрос «Paste» вызывается только прямым нажатием на кнопку.
+  // Ни одно дополнительное окно внутри приложения не открывается.
+  if(!navigator.clipboard){showToast('Буфер недоступен');return;}
   try{
     if(typeof navigator.clipboard.read==='function'){
-      // Вызов непосредственно после нажатия: для iOS требуется жест пользователя.
       const selection=await navigator.clipboard.read();
       for(const item of selection){
-        const imageType=item.types.find(t=>/^image\/(png|jpeg|webp)$/i.test(t));
+        const imageType=item.types.find(type=>/^image\/(png|jpeg|webp)$/i.test(type));
         if(imageType){
           const blob=await item.getType(imageType);
           const ext=imageType==='image/jpeg'?'jpg':imageType.split('/')[1];
-          const file=new File([blob],`Из буфера.${ext}`,{type:imageType});
-          await saveFiles([file]);return;
+          await saveFiles([new File([blob],`Из буфера.${ext}`,{type:imageType})]);
+          return;
         }
         const textType=item.types.includes('text/plain')?'text/plain':item.types.includes('text/uri-list')?'text/uri-list':null;
-        if(textType){const blob=await item.getType(textType);await saveText(await blob.text());return;}
+        if(textType){
+          const blob=await item.getType(textType);
+          const value=await blob.text();
+          if(value.trim()){await saveText(value);return;}
+        }
       }
+      showToast('Пустой буфер');
+      return;
     }
     if(typeof navigator.clipboard.readText==='function'){
-      const text=await navigator.clipboard.readText();
-      if(text.trim()){await saveText(text);return;}
+      const value=await navigator.clipboard.readText();
+      if(value.trim()){await saveText(value);return;}
+      showToast('Пустой буфер');
+      return;
     }
-    showToast('Этот формат буфера не поддерживается.');manualPaste();
+    showToast('Буфер недоступен');
   }catch(error){
-    console.info('Доступ к буферу не выдан или формат не поддерживается:',error?.name);
-    manualPaste();
+    // На iOS пользователь может отменить системную плашку Paste.
+    // В таком случае не открываем других окон и не показываем ложное «Пустой буфер».
+    if(error?.name==='NotAllowedError'||error?.name==='AbortError')return;
+    if(error?.name==='NotFoundError'){showToast('Пустой буфер');return;}
+    console.info('Ошибка чтения буфера:',error?.name);
+    showToast('Не удалось прочитать буфер');
   }
 }
 
@@ -356,10 +366,6 @@ function bindEvents(){
   // Запускаем системный file picker непосредственно из нажатия — без промежуточного окна.
   $('attachButton').addEventListener('click',()=>$('filesInput').click());
   $('filesInput').addEventListener('change',async e=>{const files=Array.from(e.target.files);e.target.value='';await saveFiles(files)});
-  $('textForm').addEventListener('submit',async event=>{
-    event.preventDefault();const value=$('newText').value,title=$('newTitle').value;
-    try{const saved=await saveText(value,title);if(saved)closeDialog('textDialog');}catch(error){console.error(error);showToast(getErrorMessage(error));}
-  });
   $('renameForm').addEventListener('submit',async event=>{
     event.preventDefault();const title=$('renameInput').value.trim();if(!title)return;
     try{await renameRecord(state.renameId,title);closeDialog('renameDialog');await refresh();showToast('Название изменено');}catch{showToast('Ошибка переименования');}
@@ -371,11 +377,33 @@ function bindEvents(){
     const entry=state.entries.find(r=>r.id===state.currentId);
     if(entry){copyValue(recordText(entry));closeDialog('itemMenu');}
   });
-  $('clipboardPasteButton').addEventListener('click',importClipboard);
-  $('clipboardButton').addEventListener('click',()=>{$('textForm').reset();showDialog('textDialog');});
-  $('pasteForm').addEventListener('submit',async event=>{
-    event.preventDefault();try{if(await saveText($('pasteText').value))closeDialog('pasteDialog');}catch(error){showToast(getErrorMessage(error));}
+  $('clipboardButton').addEventListener('click',importClipboard);
+  const quickText=$('quickText'),quickSave=$('quickTextSave');
+  const resizeQuickText=()=>{
+    quickSave.disabled=!quickText.value.trim();
+    quickText.style.height='auto';
+    quickText.style.height=Math.min(quickText.scrollHeight,116)+'px';
+  };
+  quickText.addEventListener('input',resizeQuickText);
+  quickText.addEventListener('keydown',event=>{
+    if(event.key==='Enter'&&(event.metaKey||event.ctrlKey)){
+      event.preventDefault();$('quickTextForm').requestSubmit();
+    }
   });
+  $('quickTextForm').addEventListener('submit',async event=>{
+    event.preventDefault();
+    const value=quickText.value;
+    if(!value.trim())return;
+    quickSave.disabled=true;
+    try{
+      if(await saveText(value)){
+        quickText.value='';
+        quickText.blur();
+      }
+    }catch(error){console.error(error);showToast(getErrorMessage(error));}
+    finally{resizeQuickText();}
+  });
+  resizeQuickText();
   document.querySelectorAll('[data-close]').forEach(button=>button.addEventListener('click',()=>closeDialog(button.dataset.close)));
   // Закрываем модальные окна обычным нажатием по затемнённой области, как в настройках.
   document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{

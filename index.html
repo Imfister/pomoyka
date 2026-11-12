@@ -10,11 +10,11 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta name="description" content="Личная помойка для сохранённых материалов. Все данные остаются на этом устройстве.">
   <title>Помойка</title>
-  <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="apple-touch-icon" href="./icon-180.png">
-  <link rel="icon" href="./icon-192.png" type="image/png">
-  <link rel="stylesheet" href="./style.css?v=4">
-  <script src="./app.js?v=4" defer></script>
+  <link rel="manifest" href="./manifest.webmanifest?v=5">
+  <link rel="apple-touch-icon" href="./icon-180.png?v=5">
+  <link rel="icon" href="./icon-192.png?v=5" type="image/png">
+  <link rel="stylesheet" href="./style.css?v=5">
+  <script src="./app.js?v=5" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -71,41 +71,39 @@
     </section>
 
     <footer class="bottom-actions">
-      <button id="attachButton" class="action-button action-primary" type="button">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12.5 14.6 6a3.25 3.25 0 1 1 4.6 4.6l-9 9a5.3 5.3 0 0 1-7.5-7.5l9-9"/></svg>
-        Прикрепить
-      </button>
-      <button id="clipboardPasteButton" class="action-circle-button" type="button" aria-label="Из буфера" title="Из буфера">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5.5" y="5" width="13" height="16" rx="2"/><path d="M9 5V3h6v2M9 11h6m-6 4h6"/></svg>
-      </button>
-      <button id="clipboardButton" class="action-button action-secondary" type="button">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14.5 3v5h4.5M8.5 12h7M8.5 16h5"/></svg>
-        Добавить текст
-      </button>
+      <form id="quickTextForm" class="quick-text-form" autocomplete="off">
+        <label for="quickText" class="visually-hidden">Текст или ссылка</label>
+        <textarea id="quickText" rows="1" placeholder="Написать текст или вставить ссылку" aria-label="Написать текст или вставить ссылку"></textarea>
+        <button id="quickTextSave" class="quick-text-save" type="submit" disabled aria-label="Сохранить текст или ссылку" title="Сохранить">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 19 0-14M5.5 11.5 12 5l6.5 6.5"/></svg>
+        </button>
+      </form>
+      <div class="footer-buttons">
+        <button id="attachButton" class="action-button action-primary" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12.5 14.6 6a3.25 3.25 0 1 1 4.6 4.6l-9 9a5.3 5.3 0 0 1-7.5-7.5l9-9"/></svg>
+          Прикрепить
+        </button>
+        <button id="clipboardButton" class="action-button action-secondary" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5.5" y="5" width="13" height="16" rx="2"/><path d="M9 5V3h6v2M9 11h6m-6 4h6"/></svg>
+          Из буфера
+        </button>
+      </div>
     </footer>
   </div>
 
   <!-- Системный выбор iOS: Медиатека / Снять фото или видео / Файлы. -->
   <input id="filesInput" class="file-input-accessible" type="file" multiple aria-label="Выбрать файлы для Помойки">
 
-  <dialog id="textDialog" class="sheet"><form id="textForm" class="dialog-inner">
-    <div class="dialog-header"><h3>Добавить запись</h3><button class="close-button" type="button" data-close="textDialog" aria-label="Закрыть">×</button></div>
-    <label class="field-label" for="newText">Текст или ссылка</label>
-    <textarea id="newText" rows="6" placeholder="Введи текст или вставь ссылку" required></textarea>
-    <label class="field-label" for="newTitle">Название (необязательно)</label>
-    <input id="newTitle" maxlength="160" type="text" placeholder="Без названия">
-    <button id="textSave" type="submit" class="dialog-primary">Сохранить</button>
-  </form></dialog>
 
   <dialog id="renameDialog" class="sheet"><form id="renameForm" class="dialog-inner">
-    <div class="dialog-header"><h3>Переименовать</h3><button class="close-button" type="button" data-close="renameDialog" aria-label="Закрыть">×</button></div>
+    <div class="dialog-header"><h3>Переименовать</h3><button class="close-button" type="button" data-close="renameDialog" aria-label="Закрыть"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M18 6 6 18"/></svg></button></div>
     <label class="field-label" for="renameInput">Название записи</label>
     <input id="renameInput" maxlength="160" type="text" required>
     <button type="submit" class="dialog-primary">Сохранить</button>
   </form></dialog>
 
   <dialog id="itemMenu" class="sheet"><div class="dialog-inner">
-    <div class="dialog-header"><h3 id="itemMenuTitle">Запись</h3><button class="close-button" type="button" data-close="itemMenu" aria-label="Закрыть">×</button></div>
+    <div class="dialog-header"><h3 id="itemMenuTitle">Запись</h3><button class="close-button" type="button" data-close="itemMenu" aria-label="Закрыть"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M18 6 6 18"/></svg></button></div>
     <button id="menuOpen" class="sheet-option" type="button">Открыть</button>
     <button id="menuRename" class="sheet-option" type="button">Переименовать</button>
     <button id="menuCopy" class="sheet-option hidden" type="button">Копировать содержимое</button>
@@ -113,23 +111,17 @@
   </div></dialog>
 
   <dialog id="appMenu" class="sheet"><div class="dialog-inner">
-    <div class="dialog-header"><h3>Настройки</h3><button class="close-button" type="button" data-close="appMenu" aria-label="Закрыть">×</button></div>
+    <div class="dialog-header"><h3>Настройки</h3><button class="close-button" type="button" data-close="appMenu" aria-label="Закрыть"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M18 6 6 18"/></svg></button></div>
     <p class="privacy-note">Записи хранятся только на этом устройстве.<br>Они не загружаются в GitHub или облако.</p>
     <button id="appDeleteAll" class="sheet-option danger" type="button">Удалить вообще всё</button>
   </div></dialog>
 
   <dialog id="viewer" class="viewer"><div class="viewer-shell">
-    <div class="viewer-top"><h3 id="viewerTitle">Просмотр</h3><button class="close-button" type="button" data-close="viewer" aria-label="Закрыть">×</button></div>
+    <div class="viewer-top"><h3 id="viewerTitle">Просмотр</h3><button class="close-button" type="button" data-close="viewer" aria-label="Закрыть"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M18 6 6 18"/></svg></button></div>
     <div id="viewerBody" class="viewer-body"></div>
     <div id="viewerActions" class="viewer-actions"></div>
   </div></dialog>
 
-  <dialog id="pasteDialog" class="sheet"><form id="pasteForm" class="dialog-inner">
-    <div class="dialog-header"><h3>Вставка из буфера</h3><button class="close-button" type="button" data-close="pasteDialog" aria-label="Закрыть">×</button></div>
-    <p class="privacy-note">iPhone не дал прочитать буфер автоматически. Нажми на поле и выбери «Вставить». Если скопировано фото, попробуй кнопку «Прикрепить».</p>
-    <textarea id="pasteText" rows="5" placeholder="Нажми и удерживай → Вставить"></textarea>
-    <button class="dialog-primary" type="submit">Сохранить вставленное</button>
-  </form></dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 </body>
